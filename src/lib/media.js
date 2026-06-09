@@ -3,10 +3,9 @@ import fs from 'node:fs';
 import https from 'node:https';
 import net from 'node:net';
 import path from 'node:path';
-import { DATA_DIR } from './config.js';
+import { MEDIA_DIR } from './config.js';
 import { LINE_API_BASE } from './line-api.js';
 
-export const MEDIA_DIR = path.join(DATA_DIR, 'media');
 export const MAX_REDIRECTS = 3;
 
 const SAFE_MESSAGE_ID_RE = /^[A-Za-z0-9_-]{1,128}$/;
