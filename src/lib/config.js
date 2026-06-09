@@ -38,6 +38,8 @@ let config = null;
 function readSecretFile(filePath) {
   if (!filePath) return '';
   try {
+    const stat = fs.lstatSync(filePath);
+    if (stat.isSymbolicLink() || !stat.isFile()) return '';
     return fs.readFileSync(filePath, 'utf8').trim();
   } catch {
     return '';

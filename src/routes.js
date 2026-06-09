@@ -28,7 +28,7 @@ export function registerRoutes(app, deps = {}) {
     internalToken = '',
     sendToC4 = () => {},
     replyTokenStore = new ReplyTokenStore(),
-    eventDedupeStore = null,
+    eventDedupeStore = new EventDedupeStore({ ttlMs: getConfig().webhookDedupTtlMs }),
     logger = console
   } = deps;
 
@@ -89,9 +89,8 @@ export function registerRoutes(app, deps = {}) {
         return res.status(400).json({ error: 'invalid LINE webhook body' });
       }
 
-      const dedupe = eventDedupeStore || new EventDedupeStore({ ttlMs: cfg.webhookDedupTtlMs });
       for (const event of payload.events) {
-        if (dedupe.seen(selected.id, event.webhookEventId)) continue;
+        if (eventDedupeStore.seen(selected.id, event.webhookEventId)) continue;
         const text = eventText(event);
         if (!text) continue;
 

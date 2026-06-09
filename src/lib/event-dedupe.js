@@ -10,38 +10,40 @@ export class EventDedupeStore {
     this.filePath = filePath;
     this.now = now;
     this.ttlMs = ttlMs;
+    this.state = this.#read();
   }
 
   seen(accountId, eventId) {
     if (!eventId) return false;
     const key = `${accountId}:${eventId}`;
-    const state = this.#read();
-    this.#prune(state);
-    if (state[key] && state[key] > this.now()) {
-      this.#write(state);
+    this.#prune();
+    if (this.state[key] && this.state[key] > this.now()) {
+      this.#write();
       return true;
     }
-    state[key] = this.now() + this.ttlMs;
-    this.#write(state);
+    this.state[key] = this.now() + this.ttlMs;
+    this.#write();
     return false;
   }
 
   #read() {
     try {
-      return JSON.parse(fs.readFileSync(this.filePath, 'utf8'));
+      const parsed = JSON.parse(fs.readFileSync(this.filePath, 'utf8'));
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+      return parsed;
     } catch {
       return {};
     }
   }
 
-  #write(state) {
-    writeJsonAtomic(this.filePath, state, 0o600);
+  #write() {
+    writeJsonAtomic(this.filePath, this.state, 0o600);
   }
 
-  #prune(state) {
+  #prune() {
     const now = this.now();
-    for (const [key, expiresAt] of Object.entries(state)) {
-      if (expiresAt <= now) delete state[key];
+    for (const [key, expiresAt] of Object.entries(this.state)) {
+      if (expiresAt <= now) delete this.state[key];
     }
   }
 }

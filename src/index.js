@@ -6,6 +6,8 @@ import path from 'node:path';
 import { createApp } from './routes.js';
 import { DATA_DIR, getConfig, loadConfig } from './lib/config.js';
 import { sendToC4 } from './lib/c4.js';
+import { EventDedupeStore } from './lib/event-dedupe.js';
+import { ReplyTokenStore } from './lib/reply-token-store.js';
 
 dotenv.config({ path: path.join(process.env.HOME || '', 'zylos/.env') });
 
@@ -30,7 +32,9 @@ fs.mkdirSync(path.join(DATA_DIR, 'logs'), { recursive: true });
 
 const app = createApp({
   internalToken: ensureInternalToken(),
-  sendToC4
+  sendToC4,
+  replyTokenStore: new ReplyTokenStore(),
+  eventDedupeStore: new EventDedupeStore({ ttlMs: config.webhookDedupTtlMs })
 });
 
 const port = config.port || getConfig().port || 3984;

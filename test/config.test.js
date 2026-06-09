@@ -1,3 +1,6 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { getAccounts, mergeConfigWithDefaults } from '../src/lib/config.js';
 
@@ -33,5 +36,19 @@ describe('LINE config', () => {
     });
 
     expect(() => getAccounts(config)).toThrow(/duplicate LINE webhookPath/);
+  });
+
+  it('reads secret files but rejects symlink secret files', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'line-config-'));
+    const secretPath = path.join(dir, 'secret.txt');
+    const symlinkPath = path.join(dir, 'secret-link.txt');
+    fs.writeFileSync(secretPath, 'file-secret\n', { mode: 0o600 });
+    fs.symlinkSync(secretPath, symlinkPath);
+
+    const regular = mergeConfigWithDefaults({ channelSecretFile: secretPath });
+    const symlink = mergeConfigWithDefaults({ channelSecretFile: symlinkPath });
+
+    expect(regular.channelSecret).toBe('file-secret');
+    expect(symlink.channelSecret).toBe('');
   });
 });

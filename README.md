@@ -17,6 +17,8 @@ Not yet implemented:
 - Access control and pairing.
 - Media and rich LINE message types.
 - Admin CLI and full docs.
+- Config hot reload; account changes require service restart in this slice.
+- LINE profile and group-name resolution; C2 envelopes use raw LINE IDs.
 
 ## Development
 
