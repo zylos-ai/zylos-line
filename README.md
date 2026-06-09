@@ -14,11 +14,13 @@ Implemented:
 - Outbound text send path with reply-token consumption, reply API for the first
   timely batch of up to five message objects, and push fallback for overflow,
   expired handles, and proactive sends.
+- Access gates for DMs, groups, and rooms with owner auto-bind, DM pairing
+  queue, and per-group `allowFrom` where an empty list allows all senders in a
+  configured group/room.
 
 Not yet implemented:
-- Access control and pairing.
 - Media and rich LINE message types.
-- Admin CLI and full docs.
+- Admin CLI approval commands and full docs.
 - Config hot reload; account changes require service restart in this slice.
 - LINE profile and group-name resolution; C2 envelopes use raw LINE IDs.
 

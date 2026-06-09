@@ -4,6 +4,7 @@ import { verifyLineSignature } from './lib/signature.js';
 import { EventDedupeStore } from './lib/event-dedupe.js';
 import { ReplyTokenStore } from './lib/reply-token-store.js';
 import { buildEndpoint, formatMessage, lineSourceType, lineTargetId } from './lib/format.js';
+import { decideInboundAccess } from './lib/access.js';
 
 function requestPath(req) {
   return req.path || req.originalUrl?.split('?')[0] || '';
@@ -29,6 +30,7 @@ export function registerRoutes(app, deps = {}) {
     sendToC4 = () => {},
     replyTokenStore = new ReplyTokenStore(),
     eventDedupeStore = new EventDedupeStore({ ttlMs: getConfig().webhookDedupTtlMs }),
+    decideAccess = decideInboundAccess,
     logger = console
   } = deps;
 
@@ -97,6 +99,20 @@ export function registerRoutes(app, deps = {}) {
         const type = lineSourceType(event.source);
         const targetId = lineTargetId(event.source);
         if (!targetId) continue;
+
+        const access = decideAccess({
+          config: cfg,
+          accountId: selected.id,
+          event,
+          text
+        });
+        if (access.notification) {
+          sendToC4('line', access.notification.endpoint, access.notification.content);
+        }
+        if (!access.allowed) {
+          logger.debug?.(`[line] dropped ${type} event: ${access.reason}`);
+          continue;
+        }
 
         const replyKey = replyTokenStore.create({
           accountId: selected.id,

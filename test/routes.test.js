@@ -32,6 +32,11 @@ describe('LINE webhook routes', () => {
     setConfigForTests(mergeConfigWithDefaults({
       channelSecret: 'root-secret',
       channelAccessToken: 'root-token',
+      owner: {
+        bound: true,
+        userId: 'U123',
+        name: 'Owner'
+      },
       accounts: {
         alt: {
           channelSecret: 'alt-secret',
@@ -110,5 +115,111 @@ describe('LINE webhook routes', () => {
     await signedPost(app, '/line/webhook', { destination: 'Ubot', events: [] }, 'root-secret').expect(200);
 
     expect(sent).toHaveLength(0);
+  });
+
+  it('silently drops denied DMs before creating a replyKey', async () => {
+    const replyTokenStore = new ReplyTokenStore({ filePath: tempFile('reply.json'), now: () => 1000 });
+    setConfigForTests(mergeConfigWithDefaults({
+      channelSecret: 'root-secret',
+      channelAccessToken: 'root-token',
+      owner: { bound: true, userId: 'Uowner', name: 'Owner' },
+      dmPolicy: 'owner'
+    }));
+    app = createApp({
+      sendToC4: vi.fn((channel, endpoint, content) => sent.push({ channel, endpoint, content })),
+      replyTokenStore,
+      eventDedupeStore: new EventDedupeStore({ filePath: tempFile('dedupe.json'), now: () => 1000, ttlMs: 60_000 }),
+      logger: { debug: vi.fn() }
+    });
+    const body = {
+      destination: 'Ubot',
+      events: [{
+        type: 'message',
+        webhookEventId: 'evt-denied',
+        replyToken: 'raw-denied-token',
+        source: { type: 'user', userId: 'Udenied' },
+        message: { type: 'text', text: 'hello' }
+      }]
+    };
+
+    await signedPost(app, '/line/webhook', body, 'root-secret').expect(200);
+
+    expect(sent).toHaveLength(0);
+    expect(JSON.stringify(fs.existsSync(replyTokenStore.filePath) ? JSON.parse(fs.readFileSync(replyTokenStore.filePath, 'utf8')) : {})).not.toContain('raw-denied-token');
+  });
+
+  it('queues pairing requests internally but does not deliver the original DM', async () => {
+    setConfigForTests(mergeConfigWithDefaults({
+      channelSecret: 'root-secret',
+      channelAccessToken: 'root-token',
+      owner: { bound: true, userId: 'Uowner', name: 'Owner' },
+      dmPolicy: 'pairing'
+    }));
+    app = createApp({
+      sendToC4: vi.fn((channel, endpoint, content) => sent.push({ channel, endpoint, content })),
+      replyTokenStore: new ReplyTokenStore({ filePath: tempFile('reply.json'), now: () => 1000 }),
+      eventDedupeStore: new EventDedupeStore({ filePath: tempFile('dedupe.json'), now: () => 1000, ttlMs: 60_000 }),
+      decideAccess: ({ accountId }) => ({
+        allowed: false,
+        reason: 'dm-pairing-pending',
+        notification: {
+          endpoint: `admin|type:dm-pairing|account:${accountId}|user:Unew`,
+          content: '[LINE DM Pairing Request]'
+        }
+      })
+    });
+    const body = {
+      destination: 'Ubot',
+      events: [{
+        type: 'message',
+        webhookEventId: 'evt-pairing',
+        replyToken: 'raw-pairing-token',
+        source: { type: 'user', userId: 'Unew' },
+        message: { type: 'text', text: 'hello' }
+      }]
+    };
+
+    await signedPost(app, '/line/webhook', body, 'root-secret').expect(200);
+
+    expect(sent).toEqual([{
+      channel: 'line',
+      endpoint: 'admin|type:dm-pairing|account:default|user:Unew',
+      content: '[LINE DM Pairing Request]'
+    }]);
+  });
+
+  it('accepts configured group events even when LINE omits source.userId', async () => {
+    setConfigForTests(mergeConfigWithDefaults({
+      channelSecret: 'root-secret',
+      channelAccessToken: 'root-token',
+      owner: { bound: true, userId: 'Uowner', name: 'Owner' },
+      groups: {
+        G123: { allowFrom: [] }
+      },
+      replyTokenTtlMs: 60_000,
+      webhookDedupTtlMs: 60_000
+    }));
+    app = createApp({
+      sendToC4: vi.fn((channel, endpoint, content) => sent.push({ channel, endpoint, content })),
+      replyTokenStore: new ReplyTokenStore({ filePath: tempFile('reply.json'), now: () => 1000 }),
+      eventDedupeStore: new EventDedupeStore({ filePath: tempFile('dedupe.json'), now: () => 1000, ttlMs: 60_000 })
+    });
+    const body = {
+      destination: 'Ubot',
+      events: [{
+        type: 'message',
+        webhookEventId: 'evt-group-no-user',
+        replyToken: 'reply-group',
+        source: { type: 'group', groupId: 'G123' },
+        message: { type: 'text', text: 'group hello' }
+      }]
+    };
+
+    await signedPost(app, '/line/webhook', body, 'root-secret').expect(200);
+
+    expect(sent).toHaveLength(1);
+    expect(sent[0].endpoint).toContain('G123|type:group|account:default|replyKey:');
+    expect(sent[0].endpoint).not.toContain('|user:');
+    expect(sent[0].content).toContain('[LINE GROUP:G123] unknown said:');
   });
 });

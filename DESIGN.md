@@ -19,8 +19,12 @@ components. LINE-specific protocol handling is intentionally isolated:
   once, sends the first timely batch of up to five text message objects via the
   reply API, and uses push for overflow, late, or proactive sends. Retry keys are
   attached only to push requests.
+- `src/lib/access.js` applies the inbound access gate before reply-token handle
+  creation: owner auto-bind on first DM, owner bypass, DM policy, then group/room
+  policy with per-group `allowFrom`. Pairing requests are queued and surfaced to
+  C4 but the original unapproved DM is not delivered.
 
 The early slices intentionally exclude media, rich message helpers, access
-control, config hot reload, and LINE profile/group-name resolution. Account
-changes require a service restart in this slice. Profile and group display names
-currently use raw LINE IDs in C4 envelopes.
+admin commands, config hot reload, and LINE profile/group-name resolution.
+Account changes require a service restart in this slice. Profile and group
+display names currently use raw LINE IDs in C4 envelopes.
