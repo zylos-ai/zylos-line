@@ -2,7 +2,7 @@
 
 LINE Messaging API channel component for Zylos.
 
-Current slice: C4 media and SSRF guard.
+Current slice: C6 admin CLI.
 
 Implemented:
 - Component scaffold, PM2 config, install/configure/upgrade hooks, runtime
@@ -19,6 +19,9 @@ Implemented:
   owner bypass, `dmPolicy` (`open`, `allowlist`, `owner`, `pairing`,
   `disabled`), default group allowlist, configured group/room `allowFrom`, and
   a fail-closed DM pairing queue.
+- Local admin CLI for owner, policy, allowlist, group/room, and DM pairing
+  operations with strict LINE ID validation, redacted status output, and
+  explicit confirmation before a removal empties an allowlist.
 - Inbound LINE image, video, audio, and file messages are downloaded from the
   fixed LINE content API after strict message-id validation and size checks, then
   forwarded to C4 with a local file path.
@@ -63,3 +66,26 @@ node scripts/send.js 'U123|type:dm|account:default|replyKey:abc123' 'hello'
 echo 'hello' | node scripts/send.js 'U123|type:dm|account:default'
 echo '[MEDIA:image] https://example.com/photo.png' | node scripts/send.js 'U123|type:dm|account:default'
 ```
+
+## Admin CLI
+
+The admin CLI is local-only; it is not exposed by the HTTP service.
+
+```bash
+node scripts/admin.js status
+node scripts/admin.js owner bind U123 "Owner Name" --force
+node scripts/admin.js policy dm owner
+node scripts/admin.js policy group allowlist
+node scripts/admin.js dm-allow add U123
+node scripts/admin.js dm-allow remove U123 --confirm-empty
+node scripts/admin.js group add C123 U123
+node scripts/admin.js group add R123 --allow-all
+node scripts/admin.js group remove-user C123 U123 --confirm-empty
+node scripts/admin.js pairing list
+node scripts/admin.js pairing approve U123
+node scripts/admin.js pairing deny U123
+```
+
+Removing the last entry from `dmAllowFrom` or a group/room `allowFrom` requires
+`--confirm-empty` because an empty configured group/room `allowFrom` means
+allow-all for that conversation.

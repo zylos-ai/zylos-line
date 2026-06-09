@@ -71,7 +71,7 @@ export function buildPairingNotification({ userId, userName, conversationId, fir
     `Conversation: ${conversationId || 'unknown'}`,
     firstMessage ? `First message: ${String(firstMessage).slice(0, 500)}` : '',
     '',
-    `Approve: zylos-line dm-approve ${userId}`,
-    `Deny: zylos-line dm-deny ${userId}`
+    `Approve: node scripts/admin.js pairing approve ${userId}`,
+    `Deny: node scripts/admin.js pairing deny ${userId}`
   ].filter(line => line !== '').join('\n');
 }
