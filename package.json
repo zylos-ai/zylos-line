@@ -1,0 +1,39 @@
+{
+  "name": "zylos-line",
+  "version": "0.1.0",
+  "description": "LINE Messaging API communication channel",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "vitest run",
+    "check": "find src hooks scripts test -name '*.js' -print | sort | xargs node --check"
+  },
+  "homepage": "https://github.com/zylos-ai/zylos-line#readme",
+  "bugs": {
+    "url": "https://github.com/zylos-ai/zylos-line/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zylos-ai/zylos-line.git"
+  },
+  "keywords": [
+    "zylos",
+    "line",
+    "messaging-api",
+    "agent"
+  ],
+  "author": "Zylos AI",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.3.0"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.21.0"
+  },
+  "devDependencies": {
+    "supertest": "^7.1.4",
+    "vitest": "^4.1.6"
+  }
+}
