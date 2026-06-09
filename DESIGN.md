@@ -29,8 +29,18 @@ components. LINE-specific protocol handling is intentionally isolated:
   config. Pairing mode never auto-approves unpaired users: it queues and
   surfaces the request to C4, drops the original inbound message, and denies on
   pairing-state read or write errors.
+- `src/lib/media.js` owns LINE media handling. Inbound media is fetched only by
+  a validated LINE message ID through LINE's content API, never by a user
+  supplied URL. Outbound media markers are preflighted before they become LINE
+  message objects: URLs must be HTTPS, must not include credentials, must not
+  resolve to private/loopback/link-local/multicast addresses, redirects are
+  revalidated, and content type/size caps are enforced. The outbound guard
+  canonicalizes URL hosts before range checks, rejects encoded private IPv4
+  forms and IPv4-mapped private IPv6 addresses, resolves DNS once, connects by
+  the validated resolved address, and validates the actual connected peer before
+  trusting the response. Each redirect hop repeats the full guard.
 
-The early slices intentionally exclude media, rich message helpers, access
-admin commands, config hot reload, and LINE profile/group-name resolution.
-Account changes require a service restart in this slice. Profile and group
-display names currently use raw LINE IDs in C4 envelopes.
+The early slices intentionally exclude rich message helpers, access admin
+commands, config hot reload, and LINE profile/group-name resolution. Account
+changes require a service restart in this slice. Profile and group display
+names currently use raw LINE IDs in C4 envelopes.

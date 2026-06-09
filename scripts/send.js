@@ -16,6 +16,7 @@ import { parseEndpoint } from '../src/lib/format.js';
 import { ReplyTokenStore } from '../src/lib/reply-token-store.js';
 import { sendPushMessage, sendReplyMessage } from '../src/lib/line-api.js';
 import { batchMessages, LINE_MAX_MESSAGES_PER_REQUEST, toTextMessages } from '../src/lib/text-split.js';
+import { validatePublicMediaUrl } from '../src/lib/media.js';
 
 dotenv.config({ path: path.join(process.env.HOME || '', 'zylos/.env') });
 
@@ -46,6 +47,58 @@ function validReplyEntry(entry, parsedEndpoint) {
 
 function isReplyTokenFailure(err) {
   return err?.status === 400 && /reply\s*token/i.test(String(err.message || ''));
+}
+
+const MEDIA_MARKER_RE = /^\[MEDIA:(image|video|audio)]\s*(\S+)(?:\s+(\S+))?\s*$/i;
+
+export async function toLineMessages(content, { config, validateMedia = validatePublicMediaUrl } = {}) {
+  const lines = String(content ?? '').split(/\r?\n/);
+  const messages = [];
+  let textBuffer = [];
+
+  const flushText = () => {
+    const text = textBuffer.join('\n').trim();
+    if (text) messages.push(...toTextMessages(text));
+    textBuffer = [];
+  };
+
+  for (const line of lines) {
+    const marker = line.match(MEDIA_MARKER_RE);
+    if (!marker) {
+      textBuffer.push(line);
+      continue;
+    }
+
+    flushText();
+    const mediaType = marker[1].toLowerCase();
+    const original = await validateMedia(marker[2], { mediaType, config });
+    if (mediaType === 'image') {
+      messages.push({
+        type: 'image',
+        originalContentUrl: original.url,
+        previewImageUrl: original.url
+      });
+    } else if (mediaType === 'video') {
+      if (!marker[3]) throw new Error('[MEDIA:video] requires a preview image URL');
+      const preview = await validateMedia(marker[3], { mediaType: 'image', config });
+      messages.push({
+        type: 'video',
+        originalContentUrl: original.url,
+        previewImageUrl: preview.url
+      });
+    } else if (mediaType === 'audio') {
+      const duration = marker[3] ? Number(marker[3]) : 60_000;
+      if (!Number.isFinite(duration) || duration <= 0) throw new Error('[MEDIA:audio] duration must be a positive number');
+      messages.push({
+        type: 'audio',
+        originalContentUrl: original.url,
+        duration
+      });
+    }
+  }
+
+  flushText();
+  return messages;
 }
 
 async function sendPushBatches({ account, targetId, batches, sendPush = sendPushMessage }) {
@@ -83,7 +136,8 @@ export async function sendContent(endpoint, content, {
   config = getConfig(),
   replyTokenStore = new ReplyTokenStore(),
   sendReply = sendReplyMessage,
-  sendPush = sendPushMessage
+  sendPush = sendPushMessage,
+  validateMedia = validatePublicMediaUrl
 } = {}) {
   const message = String(content ?? '');
   if (message.trim() === '[SKIP]') return [];
@@ -96,7 +150,8 @@ export async function sendContent(endpoint, content, {
   if (!account) throw new Error(`unknown LINE account: ${parsedEndpoint.account}`);
   if (!account.channelAccessToken) throw new Error(`missing channelAccessToken for LINE account: ${account.id}`);
 
-  const messages = toTextMessages(message);
+  const messages = await toLineMessages(message, { config, validateMedia });
+  if (messages.length === 0) return [];
   const results = [];
   let startPushAt = 0;
 

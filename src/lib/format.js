@@ -61,11 +61,12 @@ export function parseEndpoint(endpoint) {
   return parsed;
 }
 
-export function formatMessage(type, userName, text, { groupName } = {}) {
+export function formatMessage(type, userName, text, { groupName, filePath } = {}) {
   const prefix = type === 'dm'
     ? '[LINE DM]'
     : type === 'room'
       ? `[LINE ROOM:${escapeXml(groupName || 'unknown')}]`
       : `[LINE GROUP:${escapeXml(groupName || 'unknown')}]`;
-  return `${prefix} ${escapeXml(userName)} said: <current-message>\n${escapeXml(text)}\n</current-message>`;
+  const suffix = filePath ? ` ---- file: ${escapeXml(filePath)}` : '';
+  return `${prefix} ${escapeXml(userName)} said: <current-message>\n${escapeXml(text)}\n</current-message>${suffix}`;
 }
