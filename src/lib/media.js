@@ -339,7 +339,11 @@ export async function validatePublicMediaUrl(rawUrl, {
     throw new Error(`media URL preflight HTTP ${response.statusCode}`);
   }
 
-  const contentLength = Number(response.headers?.['content-length'] || 0);
+  const rawContentLength = response.headers?.['content-length'];
+  const contentLength = Number(rawContentLength);
+  if (!rawContentLength || !Number.isFinite(contentLength) || contentLength <= 0) {
+    throw new Error('media URL content length is required');
+  }
   if (contentLength > mediaMaxBytes(config)) throw new Error('media URL exceeds size limit');
   const contentType = response.headers?.['content-type'] || '';
   validateContentType(contentType, mediaType);

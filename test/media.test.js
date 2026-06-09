@@ -182,6 +182,15 @@ describe('LINE media helpers', () => {
   it('enforces content type and configured size caps on outbound media preflight', async () => {
     const lookup = vi.fn(async () => [{ address: '93.184.216.34', family: 4 }]);
 
+    await expect(validatePublicMediaUrl('https://cdn.example.test/image.png', {
+      mediaType: 'image',
+      lookup,
+      requestImpl: fakeHttpsRequest([{
+        remoteAddress: '93.184.216.34',
+        headers: { 'content-type': 'image/png' }
+      }])
+    })).rejects.toThrow(/content length/);
+
     await expect(validatePublicMediaUrl('https://cdn.example.test/file.bin', {
       mediaType: 'image',
       lookup,
