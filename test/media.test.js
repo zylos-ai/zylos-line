@@ -1,14 +1,66 @@
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
+import https from 'node:https';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import {
+  createPinnedLookup,
   downloadLineMessageContent,
   isBlockedIp,
   isSafeLineMessageId,
   validatePublicMediaUrl
 } from '../src/lib/media.js';
+
+const TEST_TLS_KEY = `-----BEGIN PRIVATE KEY-----
+MIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQC/1n5HMth4b5B9
+nsKClcckmuJRnLHmddNRjsyy8/vax1KVLD5hEU3OQgJV5U4SvsOPecR4F+hGwhbu
+mMfIxaIUx3qimSMXrNnidJLFIGH3e+TjkuZgvpgdlkdregUGgPSNhLVYhWy3oalV
+ywEdumXDR3EDicUC4hYqMmJqVEGB/EdOfsGZl6c34QZ71iwcl6u85yzfRXzz33q1
+IknivQXxd2imU75Z5bxpZHJWLYNBceCKKeEB77GCZjxdG/J41jGr3R+PetKGu1VY
+z5eCpexj1Yq+G0S4qVpV/nZEOrEFl+buMgym70FVQ/1Dx9mlhR195cGL99x1Gx8O
+Vs4DRjKpAgMBAAECggEAFJ31aFV7P5ujMxJS4+c7myAs3onb8gwLr/eMNwH9uUo0
+ApAvYWM+B21qBC08B3ZfshXAxbSxY+62uYx15t/xRrvBiaQHn3hrhOjztSKBJNs4
+gt9mHv5HfuEzFRvsr6xARs1SaAxpiLq5EN1bu1mDAkpf8k9mJaSCrqTyQBcvYHa6
+1WQ7dMnHmyDQxWDUnL5ECM89PQYhPGqGGZpoE62XFYAfqBYXs7cOTijXsqPzkXq/
+EeV7qbLO2a3s7ethgcdmBYPhJVVEggaL2gkmZ7BLNCSbyfVi6cyxTkdVmgsTIV/i
+7zCM/scXli0W07tG5gzmh6Khqdv/RdSqSTWXIr+FGQKBgQDi94bw2+1w2OVONwI2
+L5cnrhC8RaHDjlIqs+2509xMiDyWtYI3VIO5dKy8Ua57ez8Fw/a7VN55GSyi0Va/
+M0jmLNM/i/VrvjFloKvnEOHW17TtSZQd56UKuaqSVtp2z8FfkTcUEyZtPNsEG5gQ
+EFKkvzWAA2MJmgYeTVNDvY601wKBgQDYYJjx09b6E14Ne2kaPT9LUYX9yMqtmcET
+Rv8MVektadcRUjxq9/Sh3eYYH4z61NKdDxD/X1dr9O/LXtW475iYAjRNvGNjE9Wj
+a0p3iztEnLuAdFDLTTDIdqx7qOxP9A/+TE3PVh0Q90MD7ySqsEU6xFD7LFiwk0OF
+qlBdKo3kfwKBgHEqpFDSB7j9nI/8I5Eq934kb1nAimC8RMHgBwdh2HUcdMFcbTnz
+XN6Ki1o2i/4rvIe+ZvaO4YKWB8iDAnLBOnbyIL6NpWf8ZBrdGvlSVJjP4vlxd3XV
+u1f2rVLcFX+qJSvmdwT+a2mKL1YEADT6PorAgAd9KNNvxd80BPFAwbfvAoGAKT5g
+aNgERi6i4tb/Na0u/2BOtg0r9OM11kLWIrfNdoaSJA8UzR7uVlxBm5+H89fVPXK9
+vq+hrkZF3vH4swOYhoEFDzw1hZEmS7wLubWkWnO1mcqSC+5uugdE4V1VjffrhIFu
+43J6n91BvOI8jvyCda0t8nKFhULMwBGyt8+AtGkCgYBENrNwE1F0QqvJJ+5N6Gl0
+Q1JjPglIrjk/Pc/XsMUuxnN5vN45vfQjmGyAHy3mZEMwrlK6RFv9X1qVKXh/vbY6
+nw3JbmFG7Joj9KZNvyrHSgCKEau3Fr3fB6eMqhLkxTOJJ3d5N6BUPpNeot9ozWbp
+KlWUusv+YsmQ9roCKBaQ8g==
+-----END PRIVATE KEY-----`;
+
+const TEST_TLS_CERT = `-----BEGIN CERTIFICATE-----
+MIIDNDCCAhygAwIBAgIUeVM8tB/NWestCGhEYu6lLTmZzYQwDQYJKoZIhvcNAQEL
+BQAwGzEZMBcGA1UEAwwQY2RuLmV4YW1wbGUudGVzdDAeFw0yNjA2MDkxNjE4MDFa
+Fw0zNjA2MDYxNjE4MDFaMBsxGTAXBgNVBAMMEGNkbi5leGFtcGxlLnRlc3QwggEi
+MA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQC/1n5HMth4b5B9nsKClcckmuJR
+nLHmddNRjsyy8/vax1KVLD5hEU3OQgJV5U4SvsOPecR4F+hGwhbumMfIxaIUx3qi
+mSMXrNnidJLFIGH3e+TjkuZgvpgdlkdregUGgPSNhLVYhWy3oalVywEdumXDR3ED
+icUC4hYqMmJqVEGB/EdOfsGZl6c34QZ71iwcl6u85yzfRXzz33q1IknivQXxd2im
+U75Z5bxpZHJWLYNBceCKKeEB77GCZjxdG/J41jGr3R+PetKGu1VYz5eCpexj1Yq+
+G0S4qVpV/nZEOrEFl+buMgym70FVQ/1Dx9mlhR195cGL99x1Gx8OVs4DRjKpAgMB
+AAGjcDBuMB0GA1UdDgQWBBQSGRESd6mhPqAQnT8MhqeOES9uizAfBgNVHSMEGDAW
+gBQSGRESd6mhPqAQnT8MhqeOES9uizAPBgNVHRMBAf8EBTADAQH/MBsGA1UdEQQU
+MBKCEGNkbi5leGFtcGxlLnRlc3QwDQYJKoZIhvcNAQELBQADggEBACIsfCXEmwsB
+ejbn65s3sJ6qTDxSr4698wf3bsN60Ca/HewaXosqn5WJMo+XcdC+w/7IoHAdm3c9
+1809PaLGlDklkoupYKUM2Dx4HUCyJSQ8gL8TBG1NkoS8LO6PXXHWDds1s0TXXMdo
++VbtMwlGAtfkvaybMoYTmyl8NQMudB1vnj7hzGA0dGtAmAm7qyntb3uPKqzZH1+U
+1ePCVZ9Jlijta6VB15lrYEnNSxh3F7kL9E40X1P6o/OE/GaxA+sDS00qYkoXBwAi
+pXTpPLkNF5ZwqJbknkdCax2K+QkqtG0YgMPc9E3S044o2A4q/c6UDql14omaJYd7
+GXVQYeJ4tI4=
+-----END CERTIFICATE-----`;
 
 function responseHeaders(headers = {}) {
   return {
@@ -45,6 +97,15 @@ function fakeHttpsRequest(responses, calls = []) {
     req.destroy = err => req.emit('error', err);
     return req;
   };
+}
+
+function closeServer(server) {
+  return new Promise((resolve, reject) => {
+    server.close(err => {
+      if (err) reject(err);
+      else resolve();
+    });
+  });
 }
 
 describe('LINE media helpers', () => {
@@ -157,6 +218,52 @@ describe('LINE media helpers', () => {
       lookup,
       requestImpl: fakeHttpsRequest([{ remoteAddress: '127.0.0.1' }])
     })).rejects.toThrow(/connected to a private address/);
+  });
+
+  it('uses a Node-compatible pinned lookup callback with real https.request', async () => {
+    const seen = [];
+    const server = https.createServer({ key: TEST_TLS_KEY, cert: TEST_TLS_CERT }, (req, res) => {
+      seen.push({
+        url: req.url,
+        host: req.headers.host
+      });
+      res.writeHead(200, {
+        'content-type': 'image/png',
+        'content-length': '10'
+      });
+      res.end();
+    });
+    await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+
+    try {
+      const port = server.address().port;
+      const response = await new Promise((resolve, reject) => {
+        const req = https.request({
+          protocol: 'https:',
+          method: 'HEAD',
+          hostname: 'cdn.example.test',
+          port,
+          path: '/image.png',
+          servername: 'cdn.example.test',
+          ca: TEST_TLS_CERT,
+          headers: { Host: `cdn.example.test:${port}` },
+          lookup: createPinnedLookup({ address: '127.0.0.1', family: 4 })
+        }, res => {
+          res.resume();
+          resolve(res);
+        });
+        req.on('error', reject);
+        req.end();
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(seen).toEqual([{
+        url: '/image.png',
+        host: `cdn.example.test:${port}`
+      }]);
+    } finally {
+      await closeServer(server);
+    }
   });
 
   it('re-runs the full guard on redirect targets', async () => {

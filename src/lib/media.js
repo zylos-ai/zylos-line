@@ -264,6 +264,18 @@ function requestPathFor(parsed) {
   return `${parsed.pathname || '/'}${parsed.search || ''}`;
 }
 
+export function createPinnedLookup(selected) {
+  return (_hostname, options, callback) => {
+    const cb = typeof options === 'function' ? options : callback;
+    const wantsAll = Boolean(options && typeof options === 'object' && options.all);
+    if (wantsAll) {
+      cb(null, [{ address: selected.address, family: selected.family }]);
+      return;
+    }
+    cb(null, selected.address, selected.family);
+  };
+}
+
 export function guardedHttpsRequest(parsed, {
   lookup = dns.lookup,
   method = 'HEAD',
@@ -286,9 +298,7 @@ export function guardedHttpsRequest(parsed, {
           Host: parsed.host,
           'User-Agent': 'zylos-line/0.1'
         },
-        lookup: (_hostname, _options, callback) => {
-          callback(null, selected.address, selected.family);
-        },
+        lookup: createPinnedLookup(selected),
         timeout: timeoutMs
       }, response => {
         const remoteAddress = response.socket?.remoteAddress;
