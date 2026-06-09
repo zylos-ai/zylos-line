@@ -24,7 +24,7 @@ describe('release documentation', () => {
   });
 
   it('uses placeholders instead of project test secrets in docs', () => {
-    const docs = `${readDoc('README.md')}\n${readDoc('DESIGN.md')}`;
+    const docs = `${readDoc('README.md')}\n${readDoc('DESIGN.md')}\n${readDoc('CHANGELOG.md')}\n${readDoc('SKILL.md')}`;
 
     expect(docs).toContain('YOUR_CHANNEL_ACCESS_TOKEN');
     expect(docs).toContain('YOUR_CHANNEL_SECRET');

@@ -28,6 +28,8 @@
     "agent"
   ],
   "files": [
+    "SKILL.md",
+    "CHANGELOG.md",
     "DESIGN.md",
     "README.md",
     "LICENSE",

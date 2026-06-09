@@ -10,6 +10,7 @@
  */
 
 import path from 'node:path';
+import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import dotenv from 'dotenv';
 import { runAdminCommand } from '../src/lib/admin.js';
@@ -50,6 +51,6 @@ export async function main(argv = process.argv.slice(2), deps = {}) {
 }
 
 const thisFile = fileURLToPath(import.meta.url);
-if (process.argv[1] && path.resolve(process.argv[1]) === thisFile) {
+if (process.argv[1] && realpathSync(process.argv[1]) === thisFile) {
   main().then(code => process.exit(code));
 }
