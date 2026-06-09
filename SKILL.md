@@ -29,6 +29,7 @@ lifecycle:
 
 http_routes:
   - path: /line/webhook
+    target: http://localhost:3984
     type: reverse_proxy
 
 upgrade:

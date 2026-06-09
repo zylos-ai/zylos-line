@@ -66,6 +66,7 @@ describe('package release metadata', () => {
     expect(skill).toContain('entry: src/index.js');
     expect(skill).toContain('http_routes:');
     expect(skill).toContain('path: /line/webhook');
+    expect(skill).toContain('target: http://localhost:3984');
     expect(skill).toContain('type: reverse_proxy');
     expect(skill).toContain('configure: hooks/configure.js');
     expect(skill).toContain('post-install: hooks/post-install.js');
