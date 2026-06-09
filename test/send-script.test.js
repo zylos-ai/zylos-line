@@ -5,7 +5,7 @@ import { Readable } from 'node:stream';
 import { describe, expect, it, vi } from 'vitest';
 import { buildEndpoint } from '../src/lib/format.js';
 import { ReplyTokenStore } from '../src/lib/reply-token-store.js';
-import { main, sendContent } from '../scripts/send.js';
+import { deterministicRetryKey, main, sendContent } from '../scripts/send.js';
 
 function tempStore(nowRef = { value: 1000 }) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'line-send-'));
@@ -83,7 +83,8 @@ describe('scripts/send.js', () => {
         payload: {
           channelAccessToken: 'root-token',
           to: 'U123',
-          messages: [{ type: 'text', text: 'again' }]
+          messages: [{ type: 'text', text: 'again' }],
+          retryKey: expect.stringMatching(/^[a-f0-9-]{36}$/)
         }
       }
     ]);
@@ -150,7 +151,8 @@ describe('scripts/send.js', () => {
       payload: {
         channelAccessToken: 'root-token',
         to: 'U123',
-        messages: [{ type: 'text', text: 'late' }]
+        messages: [{ type: 'text', text: 'late' }],
+        retryKey: expect.stringMatching(/^[a-f0-9-]{36}$/)
       }
     }]);
   });
@@ -194,7 +196,8 @@ describe('scripts/send.js', () => {
         payload: {
           channelAccessToken: 'root-token',
           to: 'U123',
-          messages: [{ type: 'text', text: 'late-at-line' }]
+          messages: [{ type: 'text', text: 'late-at-line' }],
+          retryKey: expect.stringMatching(/^[a-f0-9-]{36}$/)
         }
       }
     ]);
@@ -256,6 +259,30 @@ describe('scripts/send.js', () => {
     });
 
     expect(calls[0].channelAccessToken).toBe('alt-token');
+  });
+
+  it('uses deterministic push retry keys for the same logical batch', async () => {
+    const first = [];
+    const second = [];
+    const deps = calls => ({
+      config: config(),
+      replyTokenStore: tempStore(),
+      sendPush: vi.fn(async payload => {
+        calls.push(payload.retryKey);
+        return { ok: true };
+      })
+    });
+
+    await sendContent('U123|type:dm|account:default', 'hello retry', deps(first));
+    await sendContent('U123|type:dm|account:default', 'hello retry', deps(second));
+
+    expect(first).toEqual(second);
+    expect(first[0]).toBe(deterministicRetryKey({
+      accountId: 'default',
+      targetId: 'U123',
+      messages: [{ type: 'text', text: 'hello retry' }],
+      batchIndex: 0
+    }));
   });
 
   it('skips [SKIP] without sending', async () => {

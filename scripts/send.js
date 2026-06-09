@@ -9,6 +9,7 @@
 
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import crypto from 'node:crypto';
 import dotenv from 'dotenv';
 import { findAccountById, getConfig } from '../src/lib/config.js';
 import { parseEndpoint } from '../src/lib/format.js';
@@ -49,14 +50,33 @@ function isReplyTokenFailure(err) {
 
 async function sendPushBatches({ account, targetId, batches, sendPush = sendPushMessage }) {
   const results = [];
-  for (const messages of batches) {
+  for (let batchIndex = 0; batchIndex < batches.length; batchIndex += 1) {
+    const messages = batches[batchIndex];
     results.push(await sendPush({
       channelAccessToken: account.channelAccessToken,
       to: targetId,
-      messages
+      messages,
+      retryKey: deterministicRetryKey({ accountId: account.id, targetId, messages, batchIndex })
     }));
   }
   return results;
+}
+
+export function deterministicRetryKey({ accountId, targetId, messages, batchIndex }) {
+  const bytes = crypto.createHash('sha256')
+    .update(JSON.stringify({ accountId, targetId, messages, batchIndex }))
+    .digest()
+    .subarray(0, 16);
+  bytes[6] = (bytes[6] & 0x0f) | 0x50;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hash = bytes.toString('hex');
+  return [
+    hash.slice(0, 8),
+    hash.slice(8, 12),
+    hash.slice(12, 16),
+    hash.slice(16, 20),
+    hash.slice(20, 32)
+  ].join('-');
 }
 
 export async function sendContent(endpoint, content, {

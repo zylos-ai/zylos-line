@@ -1,5 +1,3 @@
-import crypto from 'node:crypto';
-
 export const LINE_API_BASE = 'https://api.line.me';
 
 async function parseResponse(response) {
@@ -63,6 +61,6 @@ export function sendPushMessage({ channelAccessToken, to, messages }, deps = {})
   }, {
     ...deps,
     channelAccessToken,
-    retryKey: deps.retryKey || crypto.randomUUID()
+    retryKey: deps.retryKey || ''
   });
 }
