@@ -5,6 +5,7 @@ import { EventDedupeStore } from './lib/event-dedupe.js';
 import { ReplyTokenStore } from './lib/reply-token-store.js';
 import { buildEndpoint, formatMessage, lineSourceType, lineTargetId } from './lib/format.js';
 import { decideInboundAccess } from './lib/access.js';
+import { downloadLineMessageContent, isSafeLineMessageId } from './lib/media.js';
 
 function requestPath(req) {
   return req.path || req.originalUrl?.split('?')[0] || '';
@@ -18,9 +19,18 @@ function safeJsonParse(rawBody) {
   }
 }
 
+const MEDIA_MESSAGE_TYPES = new Set(['image', 'video', 'audio', 'file']);
+
 function eventText(event) {
   if (event.type !== 'message') return '';
   if (event.message?.type === 'text') return event.message.text || '';
+  return '';
+}
+
+function eventPlaceholder(event) {
+  if (event.type !== 'message') return '';
+  if (event.message?.type === 'text') return event.message.text || '';
+  if (MEDIA_MESSAGE_TYPES.has(event.message?.type)) return `<media:${event.message.type}>`;
   return '';
 }
 
@@ -31,6 +41,7 @@ export function registerRoutes(app, deps = {}) {
     replyTokenStore = new ReplyTokenStore(),
     eventDedupeStore = new EventDedupeStore({ ttlMs: getConfig().webhookDedupTtlMs }),
     decideAccess = decideInboundAccess,
+    downloadMedia = downloadLineMessageContent,
     logger = console
   } = deps;
 
@@ -93,7 +104,7 @@ export function registerRoutes(app, deps = {}) {
 
       for (const event of payload.events) {
         if (eventDedupeStore.seen(selected.id, event.webhookEventId)) continue;
-        const text = eventText(event);
+        const text = eventPlaceholder(event);
         if (!text) continue;
 
         const type = lineSourceType(event.source);
@@ -114,6 +125,25 @@ export function registerRoutes(app, deps = {}) {
           continue;
         }
 
+        let filePath = '';
+        if (MEDIA_MESSAGE_TYPES.has(event.message?.type)) {
+          if (!isSafeLineMessageId(event.message?.id)) {
+            logger.warn?.('[line] dropped media event with invalid message id');
+            continue;
+          }
+          try {
+            const media = await downloadMedia({
+              messageId: event.message.id,
+              channelAccessToken: selected.channelAccessToken,
+              config: cfg
+            });
+            filePath = media.filePath;
+          } catch (err) {
+            logger.warn?.(`[line] failed to download media: ${err.message}`);
+            continue;
+          }
+        }
+
         const replyKey = replyTokenStore.create({
           accountId: selected.id,
           targetId,
@@ -126,7 +156,7 @@ export function registerRoutes(app, deps = {}) {
           userId: event.source?.userId,
           replyKey
         });
-        const content = formatMessage(type, event.source?.userId || 'unknown', text, { groupName: targetId });
+        const content = formatMessage(type, event.source?.userId || 'unknown', text, { groupName: targetId, filePath });
         sendToC4('line', endpoint, content);
       }
 

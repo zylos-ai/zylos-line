@@ -2,7 +2,7 @@
 
 LINE Messaging API channel component for Zylos.
 
-Current slice: C5 access control and pairing.
+Current slice: C4 media and SSRF guard.
 
 Implemented:
 - Component scaffold, PM2 config, install/configure hooks, and 0o600 config writes.
@@ -18,9 +18,17 @@ Implemented:
   owner bypass, `dmPolicy` (`open`, `allowlist`, `owner`, `pairing`,
   `disabled`), default group allowlist, configured group/room `allowFrom`, and
   a fail-closed DM pairing queue.
+- Inbound LINE image, video, audio, and file messages are downloaded from the
+  fixed LINE content API after strict message-id validation and size checks, then
+  forwarded to C4 with a local file path.
+- Outbound `[MEDIA:image]`, `[MEDIA:video]`, and `[MEDIA:audio]` markers with
+  shared public-URL preflight before creating LINE media message objects.
+- Outbound media URL preflight enforces HTTPS-only, no credentials, public IP
+  ranges only, redirect revalidation, content type and size caps, DNS-result
+  pinning for the connection, and actual connected-peer validation.
 
 Not yet implemented:
-- Media and rich LINE message types.
+- Rich LINE message types beyond basic media markers.
 - Admin CLI approval commands and full docs.
 - Config hot reload; account changes require service restart in this slice.
 - LINE profile and group-name resolution; C2 envelopes use raw LINE IDs.
@@ -38,4 +46,5 @@ npm run check
 ```bash
 node scripts/send.js 'U123|type:dm|account:default|replyKey:abc123' 'hello'
 echo 'hello' | node scripts/send.js 'U123|type:dm|account:default'
+echo '[MEDIA:image] https://example.com/photo.png' | node scripts/send.js 'U123|type:dm|account:default'
 ```

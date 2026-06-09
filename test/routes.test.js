@@ -222,4 +222,67 @@ describe('LINE webhook routes', () => {
     expect(sent[0].endpoint).not.toContain('|user:');
     expect(sent[0].content).toContain('[LINE GROUP:G123] unknown said:');
   });
+
+  it('downloads inbound media by LINE message id and forwards the file path', async () => {
+    const downloadMedia = vi.fn(async ({ messageId, channelAccessToken }) => ({
+      filePath: `/tmp/${messageId}.png`,
+      contentType: 'image/png',
+      bytes: 10
+    }));
+    app = createApp({
+      sendToC4: vi.fn((channel, endpoint, content) => sent.push({ channel, endpoint, content })),
+      replyTokenStore: new ReplyTokenStore({ filePath: tempFile('reply.json'), now: () => 1000 }),
+      eventDedupeStore: new EventDedupeStore({ filePath: tempFile('dedupe.json'), now: () => 1000, ttlMs: 60_000 }),
+      downloadMedia
+    });
+    const body = {
+      destination: 'Ubot',
+      events: [{
+        type: 'message',
+        webhookEventId: 'evt-image',
+        replyToken: 'reply-image',
+        source: { type: 'user', userId: 'U123' },
+        message: { type: 'image', id: 'img_123' }
+      }]
+    };
+
+    await signedPost(app, '/line/webhook', body, 'root-secret').expect(200);
+
+    expect(downloadMedia).toHaveBeenCalledWith({
+      messageId: 'img_123',
+      channelAccessToken: 'root-token',
+      config: expect.objectContaining({ mediaMaxMb: 10 })
+    });
+    expect(sent).toHaveLength(1);
+    expect(sent[0].content).toContain('&lt;media:image&gt;');
+    expect(sent[0].content).toContain('---- file: /tmp/img_123.png');
+  });
+
+  it('rejects inbound media with invalid LINE message ids before download or replyKey creation', async () => {
+    const replyTokenStore = new ReplyTokenStore({ filePath: tempFile('reply.json'), now: () => 1000 });
+    const downloadMedia = vi.fn();
+    app = createApp({
+      sendToC4: vi.fn((channel, endpoint, content) => sent.push({ channel, endpoint, content })),
+      replyTokenStore,
+      eventDedupeStore: new EventDedupeStore({ filePath: tempFile('dedupe.json'), now: () => 1000, ttlMs: 60_000 }),
+      downloadMedia,
+      logger: { warn: vi.fn(), debug: vi.fn() }
+    });
+    const body = {
+      destination: 'Ubot',
+      events: [{
+        type: 'message',
+        webhookEventId: 'evt-bad-media',
+        replyToken: 'reply-bad-media',
+        source: { type: 'user', userId: 'U123' },
+        message: { type: 'image', id: '../secret' }
+      }]
+    };
+
+    await signedPost(app, '/line/webhook', body, 'root-secret').expect(200);
+
+    expect(downloadMedia).not.toHaveBeenCalled();
+    expect(sent).toHaveLength(0);
+    expect(JSON.stringify(fs.existsSync(replyTokenStore.filePath) ? JSON.parse(fs.readFileSync(replyTokenStore.filePath, 'utf8')) : {})).not.toContain('reply-bad-media');
+  });
 });

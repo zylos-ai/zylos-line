@@ -5,7 +5,7 @@ import { Readable } from 'node:stream';
 import { describe, expect, it, vi } from 'vitest';
 import { buildEndpoint } from '../src/lib/format.js';
 import { ReplyTokenStore } from '../src/lib/reply-token-store.js';
-import { deterministicRetryKey, main, sendContent } from '../scripts/send.js';
+import { deterministicRetryKey, main, sendContent, toLineMessages } from '../scripts/send.js';
 
 function tempStore(nowRef = { value: 1000 }) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'line-send-'));
@@ -283,6 +283,56 @@ describe('scripts/send.js', () => {
       messages: [{ type: 'text', text: 'hello retry' }],
       batchIndex: 0
     }));
+  });
+
+  it('turns outbound media markers into validated LINE media messages', async () => {
+    const calls = [];
+    const validateMedia = vi.fn(async (url, { mediaType }) => ({
+      url: `${url}?checked=${mediaType}`
+    }));
+
+    await sendContent('U123|type:dm|account:default', [
+      'before',
+      '[MEDIA:image]https://media.example.com/photo.png',
+      '[MEDIA:video]https://media.example.com/movie.mp4 https://media.example.com/preview.jpg',
+      '[MEDIA:audio]https://media.example.com/audio.m4a 12000',
+      'after'
+    ].join('\n'), {
+      config: config(),
+      replyTokenStore: tempStore(),
+      validateMedia,
+      sendPush: vi.fn(async payload => {
+        calls.push(payload.messages);
+        return { ok: true };
+      })
+    });
+
+    expect(calls[0]).toEqual([
+      { type: 'text', text: 'before' },
+      {
+        type: 'image',
+        originalContentUrl: 'https://media.example.com/photo.png?checked=image',
+        previewImageUrl: 'https://media.example.com/photo.png?checked=image'
+      },
+      {
+        type: 'video',
+        originalContentUrl: 'https://media.example.com/movie.mp4?checked=video',
+        previewImageUrl: 'https://media.example.com/preview.jpg?checked=image'
+      },
+      {
+        type: 'audio',
+        originalContentUrl: 'https://media.example.com/audio.m4a?checked=audio',
+        duration: 12000
+      },
+      { type: 'text', text: 'after' }
+    ]);
+  });
+
+  it('requires preview URLs for outbound video media markers', async () => {
+    await expect(toLineMessages('[MEDIA:video]https://media.example.com/movie.mp4', {
+      config: config(),
+      validateMedia: vi.fn(async url => ({ url }))
+    })).rejects.toThrow(/preview image URL/);
   });
 
   it('skips [SKIP] without sending', async () => {
