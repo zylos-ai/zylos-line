@@ -2,7 +2,7 @@
 
 LINE Messaging API channel component for Zylos.
 
-Current slice: C1/C2 scaffold and signed webhook receiver.
+Current slice: C3 outbound text send path.
 
 Implemented:
 - Component scaffold, PM2 config, install/configure hooks, and 0o600 config writes.
@@ -11,9 +11,11 @@ Implemented:
 - Signed POST webhook verification path, including `events: []`.
 - `webhookEventId` TTL dedupe.
 - Server-side reply-token handle storage with C4 endpoints carrying only `replyKey:<nonce>`.
+- Outbound text send path with reply-token consumption, reply API for the first
+  timely batch of up to five message objects, and push fallback for overflow,
+  expired handles, and proactive sends.
 
 Not yet implemented:
-- Outbound reply/push send path.
 - Access control and pairing.
 - Media and rich LINE message types.
 - Admin CLI and full docs.
@@ -26,4 +28,11 @@ Not yet implemented:
 npm install
 npm test
 npm run check
+```
+
+## Send Script
+
+```bash
+node scripts/send.js 'U123|type:dm|account:default|replyKey:abc123' 'hello'
+echo 'hello' | node scripts/send.js 'U123|type:dm|account:default'
 ```

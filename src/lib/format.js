@@ -38,6 +38,29 @@ export function buildEndpoint(targetId, { type, accountId, userId, replyKey } = 
   return endpoint;
 }
 
+const ENDPOINT_KEYS = new Set(['type', 'account', 'user', 'replyKey']);
+
+export function parseEndpoint(endpoint) {
+  const parts = String(endpoint || '').split('|');
+  const parsed = {
+    targetId: parts[0] || '',
+    type: 'dm',
+    account: 'default',
+    user: '',
+    replyKey: ''
+  };
+  for (const part of parts.slice(1)) {
+    const colonIdx = part.indexOf(':');
+    if (colonIdx <= 0) continue;
+    const key = part.slice(0, colonIdx);
+    if (!ENDPOINT_KEYS.has(key)) continue;
+    parsed[key] = part.slice(colonIdx + 1);
+  }
+  if (!parsed.account) parsed.account = 'default';
+  if (!parsed.type) parsed.type = 'dm';
+  return parsed;
+}
+
 export function formatMessage(type, userName, text, { groupName } = {}) {
   const prefix = type === 'dm'
     ? '[LINE DM]'
