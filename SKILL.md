@@ -22,8 +22,14 @@ lifecycle:
     post-upgrade: hooks/post-upgrade.js
   preserve:
     - config.json
+    - dm-pairing.json
+    - .internal-token
     - media/
     - logs/
+
+http_routes:
+  - path: /line/webhook
+    type: reverse_proxy
 
 upgrade:
   repo: zylos-ai/zylos-line
