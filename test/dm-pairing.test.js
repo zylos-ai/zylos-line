@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { loadPairingState, markPairingPending, savePairingState } from '../src/lib/dm-pairing.js';
+import { buildPairingNotification, loadPairingState, markPairingPending, savePairingState } from '../src/lib/dm-pairing.js';
 
 describe('LINE DM pairing state', () => {
   it('loads missing state as empty', () => {
@@ -26,5 +26,17 @@ describe('LINE DM pairing state', () => {
     savePairingState(state, filePath);
 
     expect(loadPairingState(filePath).pending.Unew).toEqual(expect.objectContaining({ firstMessage: 'hello' }));
+  });
+
+  it('prints real admin CLI approve and deny commands in pairing notifications', () => {
+    const notification = buildPairingNotification({
+      userId: 'Unew',
+      userName: 'User',
+      conversationId: 'Unew',
+      firstMessage: 'hello'
+    });
+
+    expect(notification).toContain('Approve: node scripts/admin.js pairing approve Unew');
+    expect(notification).toContain('Deny: node scripts/admin.js pairing deny Unew');
   });
 });

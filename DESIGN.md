@@ -29,6 +29,14 @@ components. LINE-specific protocol handling is intentionally isolated:
   config. Pairing mode never auto-approves unpaired users: it queues and
   surfaces the request to C4, drops the original inbound message, and denies on
   pairing-state read or write errors.
+- `scripts/admin.js` is a local-only access administration CLI backed by
+  `src/lib/admin.js`. It validates LINE IDs before mutation, rejects prototype
+  pollution keys, redacts credentials from status output, and writes config
+  atomically with `0o600` permissions. Removing the final DM allowlist or
+  group/room `allowFrom` entry requires `--confirm-empty` because empty
+  group/room `allowFrom` means allow-all. Pairing approval requires an existing
+  pending request, adds the user to `dmAllowFrom` before clearing the pending
+  request, and never grants access on deny.
 - `src/lib/media.js` owns LINE media handling. Inbound media is fetched only by
   a validated LINE message ID through LINE's content API, never by a user
   supplied URL. Outbound media markers are preflighted before they become LINE
@@ -46,7 +54,7 @@ components. LINE-specific protocol handling is intentionally isolated:
 - `package.json` uses an explicit npm `files` allowlist so tests, fixtures, local
   media, logs, and other workspace artifacts are not shipped by accident.
 
-The early slices intentionally exclude rich message helpers, access admin
-commands, config hot reload, and LINE profile/group-name resolution. Account
-changes require a service restart in this slice. Profile and group display
-names currently use raw LINE IDs in C4 envelopes.
+The early slices intentionally exclude rich message helpers, config hot reload,
+and LINE profile/group-name resolution. Account changes require a service
+restart in this slice. Profile and group display names currently use raw LINE
+IDs in C4 envelopes.
