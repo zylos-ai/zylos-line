@@ -165,7 +165,7 @@ tokens or secrets.
 
 The npm package uses an explicit `files` allowlist. Runtime package contents are:
 
-- `README.md`, `DESIGN.md`, `LICENSE`
+- `README.md`, `DESIGN.md`, `CHANGELOG.md`, `LICENSE`, `SKILL.md`
 - `ecosystem.config.cjs`
 - `hooks/`
 - `scripts/`

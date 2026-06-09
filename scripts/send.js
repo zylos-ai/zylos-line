@@ -8,6 +8,7 @@
  */
 
 import path from 'node:path';
+import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import crypto from 'node:crypto';
 import dotenv from 'dotenv';
@@ -203,6 +204,6 @@ export async function main(argv = process.argv.slice(2), stdin = process.stdin, 
 }
 
 const thisFile = fileURLToPath(import.meta.url);
-if (process.argv[1] && path.resolve(process.argv[1]) === thisFile) {
+if (process.argv[1] && realpathSync(process.argv[1]) === thisFile) {
   main().then(code => process.exit(code));
 }
