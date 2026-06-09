@@ -14,8 +14,12 @@ components. LINE-specific protocol handling is intentionally isolated:
   primary state plus disk persistence model as the reply-token store.
 - `src/routes.js` selects the LINE account by webhook path before signature
   verification, then parses the JSON body only after HMAC passes.
+- `scripts/send.js` parses C4 endpoints, consumes a `replyKey` handle at most
+  once, sends the first timely batch of up to five text message objects via the
+  reply API, and uses push for overflow, late, or proactive sends. Retry keys are
+  attached only to push requests.
 
-The first slice intentionally excludes outbound send, media, rich message
-helpers, access control, config hot reload, and LINE profile/group-name
-resolution. Account changes require a service restart in this slice. Profile and
-group display names currently use raw LINE IDs in C4 envelopes.
+The early slices intentionally exclude media, rich message helpers, access
+control, config hot reload, and LINE profile/group-name resolution. Account
+changes require a service restart in this slice. Profile and group display names
+currently use raw LINE IDs in C4 envelopes.

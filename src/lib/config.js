@@ -116,6 +116,10 @@ export function findAccountByPath(requestPath, cfg = getConfig()) {
   return getAccounts(cfg).find(account => account.webhookPath === requestPath) || null;
 }
 
+export function findAccountById(accountId = 'default', cfg = getConfig()) {
+  return getAccounts(cfg).find(account => account.id === (accountId || 'default')) || null;
+}
+
 function normalizeAccount(id, account = {}) {
   return {
     id,
