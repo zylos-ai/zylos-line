@@ -89,3 +89,8 @@ node scripts/admin.js pairing deny U123
 Removing the last entry from `dmAllowFrom` or a group/room `allowFrom` requires
 `--confirm-empty` because an empty configured group/room `allowFrom` means
 allow-all for that conversation.
+
+Adding a user to a group/room that is currently configured with `--allow-all`
+changes that conversation from allow-all to restricted-to-listed-users.
+`pairing deny` only denies a pending pairing request; it does not revoke an
+already-approved user. Use `dm-allow remove` for revocation.
