@@ -101,6 +101,26 @@ describe('LINE media helpers', () => {
     })).rejects.toThrow(/size limit/);
   });
 
+  it('rejects inbound LINE media while streaming when content-length is absent', async () => {
+    await expect(downloadLineMessageContent({
+      messageId: 'msg_123',
+      channelAccessToken: 'token',
+      config: { mediaMaxMb: 1 },
+      fetchImpl: async () => ({
+        ok: true,
+        status: 200,
+        headers: responseHeaders({ 'content-type': 'image/png' }),
+        body: new ReadableStream({
+          start(controller) {
+            controller.enqueue(Buffer.alloc(1024 * 1024));
+            controller.enqueue(Buffer.alloc(1));
+            controller.close();
+          }
+        })
+      })
+    })).rejects.toThrow(/size limit/);
+  });
+
   it('canonicalizes and rejects private, link-local, encoded, and IPv4-mapped addresses', async () => {
     expect(isBlockedIp('10.1.2.3')).toBe(true);
     expect(isBlockedIp('169.254.169.254')).toBe(true);

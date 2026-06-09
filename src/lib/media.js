@@ -60,6 +60,30 @@ function ensureMediaDir(mediaDir) {
   fs.mkdirSync(mediaDir, { recursive: true, mode: 0o700 });
 }
 
+async function readResponseBodyLimited(response, maxBytes) {
+  if (!response.body?.getReader) {
+    const buffer = Buffer.from(await response.arrayBuffer());
+    if (buffer.byteLength > maxBytes) throw new Error('inbound media exceeds size limit');
+    return buffer;
+  }
+
+  const reader = response.body.getReader();
+  const chunks = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    const chunk = Buffer.from(value);
+    total += chunk.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel();
+      throw new Error('inbound media exceeds size limit');
+    }
+    chunks.push(chunk);
+  }
+  return Buffer.concat(chunks, total);
+}
+
 export async function downloadLineMessageContent({
   messageId,
   channelAccessToken,
@@ -81,9 +105,8 @@ export async function downloadLineMessageContent({
   const contentLength = Number(response.headers?.get?.('content-length') || 0);
   if (contentLength > maxBytes) throw new Error('inbound media exceeds size limit');
 
-  const buffer = Buffer.from(await response.arrayBuffer());
+  const buffer = await readResponseBodyLimited(response, maxBytes);
   if (buffer.byteLength === 0) throw new Error('inbound media is empty');
-  if (buffer.byteLength > maxBytes) throw new Error('inbound media exceeds size limit');
 
   const contentType = response.headers?.get?.('content-type') || 'application/octet-stream';
   ensureMediaDir(mediaDir);
