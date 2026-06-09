@@ -4,7 +4,7 @@ import { randomBytes } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createApp } from './routes.js';
-import { DATA_DIR, getConfig, loadConfig } from './lib/config.js';
+import { DATA_DIR, ensureRuntimeDirs, getConfig, loadConfig } from './lib/config.js';
 import { sendToC4 } from './lib/c4.js';
 import { EventDedupeStore } from './lib/event-dedupe.js';
 import { ReplyTokenStore } from './lib/reply-token-store.js';
@@ -28,7 +28,7 @@ function cryptoRandom() {
 }
 
 const config = loadConfig();
-fs.mkdirSync(path.join(DATA_DIR, 'logs'), { recursive: true });
+ensureRuntimeDirs();
 
 const app = createApp({
   internalToken: ensureInternalToken(),

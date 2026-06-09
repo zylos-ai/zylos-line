@@ -1,9 +1,8 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
-import path from 'node:path';
-import { DATA_DIR, CONFIG_PATH, DEFAULT_CONFIG, saveConfig } from '../src/lib/config.js';
+import { CONFIG_PATH, DEFAULT_CONFIG, ensureRuntimeDirs, saveConfig } from '../src/lib/config.js';
 
-fs.mkdirSync(path.join(DATA_DIR, 'logs'), { recursive: true });
+ensureRuntimeDirs();
 if (!fs.existsSync(CONFIG_PATH)) {
   saveConfig(DEFAULT_CONFIG);
   console.log(`[post-install] Created ${CONFIG_PATH}`);

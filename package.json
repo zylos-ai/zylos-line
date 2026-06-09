@@ -23,6 +23,15 @@
     "messaging-api",
     "agent"
   ],
+  "files": [
+    "DESIGN.md",
+    "README.md",
+    "LICENSE",
+    "ecosystem.config.cjs",
+    "hooks/",
+    "scripts/",
+    "src/"
+  ],
   "author": "Zylos AI",
   "license": "MIT",
   "engines": {

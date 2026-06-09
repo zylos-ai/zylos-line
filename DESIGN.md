@@ -39,6 +39,12 @@ components. LINE-specific protocol handling is intentionally isolated:
   forms and IPv4-mapped private IPv6 addresses, resolves DNS once, connects by
   the validated resolved address, and validates the actual connected peer before
   trusting the response. Each redirect hop repeats the full guard.
+- `hooks/post-install.js`, `hooks/post-upgrade.js`, and `src/index.js` all call
+  the shared runtime directory initializer so `logs/` and `media/` exist before
+  PM2 logging or inbound media writes need them. Install preserves existing
+  config, while configure rewrites normalized config with `0o600` permissions.
+- `package.json` uses an explicit npm `files` allowlist so tests, fixtures, local
+  media, logs, and other workspace artifacts are not shipped by accident.
 
 The early slices intentionally exclude rich message helpers, access admin
 commands, config hot reload, and LINE profile/group-name resolution. Account

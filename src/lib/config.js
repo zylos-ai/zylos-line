@@ -5,6 +5,8 @@ import { writeJsonAtomic } from './atomic-write.js';
 const HOME = process.env.HOME || '';
 export const DATA_DIR = path.join(HOME, 'zylos/components/line');
 export const CONFIG_PATH = path.join(DATA_DIR, 'config.json');
+export const LOG_DIR = path.join(DATA_DIR, 'logs');
+export const MEDIA_DIR = path.join(DATA_DIR, 'media');
 
 export const DEFAULT_CONFIG = {
   enabled: true,
@@ -162,4 +164,9 @@ export function saveConfig(nextConfig) {
   writeJsonAtomic(CONFIG_PATH, normalized, 0o600);
   config = normalized;
   return normalized;
+}
+
+export function ensureRuntimeDirs() {
+  fs.mkdirSync(LOG_DIR, { recursive: true, mode: 0o700 });
+  fs.mkdirSync(MEDIA_DIR, { recursive: true, mode: 0o700 });
 }

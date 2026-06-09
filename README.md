@@ -5,7 +5,8 @@ LINE Messaging API channel component for Zylos.
 Current slice: C4 media and SSRF guard.
 
 Implemented:
-- Component scaffold, PM2 config, install/configure hooks, and 0o600 config writes.
+- Component scaffold, PM2 config, install/configure/upgrade hooks, runtime
+  directory creation, and 0o600 config writes.
 - Multi-account config shape with deterministic webhook path selection.
 - LINE `X-Line-Signature` verification over raw request body bytes before JSON parsing.
 - Signed POST webhook verification path, including `events: []`.
@@ -40,6 +41,20 @@ npm install
 npm test
 npm run check
 ```
+
+## Runtime Data
+
+Lifecycle hooks create and preserve runtime state under
+`~/zylos/components/line/`:
+
+- `config.json` stores normalized component config and is written with `0o600`
+  permissions.
+- `logs/` is used by PM2 log paths.
+- `media/` stores inbound LINE media fetched from the fixed LINE content API.
+
+Default config is intentionally conservative: DMs are owner-only, groups are
+allowlist-only, media is capped by `mediaMaxMb`, and webhook request bodies are
+capped by `requestMaxBytes`.
 
 ## Send Script
 
