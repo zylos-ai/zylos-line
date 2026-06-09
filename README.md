@@ -2,7 +2,7 @@
 
 LINE Messaging API channel component for Zylos.
 
-Current slice: C3 outbound text send path.
+Current slice: C5 access control and pairing.
 
 Implemented:
 - Component scaffold, PM2 config, install/configure hooks, and 0o600 config writes.
@@ -14,9 +14,10 @@ Implemented:
 - Outbound text send path with reply-token consumption, reply API for the first
   timely batch of up to five message objects, and push fallback for overflow,
   expired handles, and proactive sends.
-- Access gates for DMs, groups, and rooms with owner auto-bind, DM pairing
-  queue, and per-group `allowFrom` where an empty list allows all senders in a
-  configured group/room.
+- Access gates for DMs, groups, and rooms with first-DM owner auto-bind,
+  owner bypass, `dmPolicy` (`open`, `allowlist`, `owner`, `pairing`,
+  `disabled`), default group allowlist, configured group/room `allowFrom`, and
+  a fail-closed DM pairing queue.
 
 Not yet implemented:
 - Media and rich LINE message types.

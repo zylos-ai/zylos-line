@@ -19,10 +19,16 @@ components. LINE-specific protocol handling is intentionally isolated:
   once, sends the first timely batch of up to five text message objects via the
   reply API, and uses push for overflow, late, or proactive sends. Retry keys are
   attached only to push requests.
-- `src/lib/access.js` applies the inbound access gate before reply-token handle
-  creation: owner auto-bind on first DM, owner bypass, DM policy, then group/room
-  policy with per-group `allowFrom`. Pairing requests are queued and surfaced to
-  C4 but the original unapproved DM is not delivered.
+- `src/lib/access.js` applies the inbound access gate after signature, dedupe,
+  message extraction, and source identification, but before reply-token handle
+  creation. The gate order is first-DM owner auto-bind, owner bypass, DM policy,
+  then group/room policy. Configured group or room entries with empty
+  `allowFrom` arrays allow all senders in that conversation; non-empty arrays
+  allow only matching LINE user IDs.
+- `src/lib/dm-pairing.js` stores pending DM pairing requests separately from
+  config. Pairing mode never auto-approves unpaired users: it queues and
+  surfaces the request to C4, drops the original inbound message, and denies on
+  pairing-state read or write errors.
 
 The early slices intentionally exclude media, rich message helpers, access
 admin commands, config hot reload, and LINE profile/group-name resolution.
