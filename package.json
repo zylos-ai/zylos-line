@@ -4,6 +4,10 @@
   "description": "LINE Messaging API communication channel",
   "type": "module",
   "main": "src/index.js",
+  "bin": {
+    "zylos-line-send": "./scripts/send.js",
+    "zylos-line-admin": "./scripts/admin.js"
+  },
   "scripts": {
     "start": "node src/index.js",
     "test": "vitest run",
