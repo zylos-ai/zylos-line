@@ -22,6 +22,7 @@ export class ReplyTokenStore {
   } = {}) {
     this.filePath = filePath;
     this.lockPath = `${filePath}.lock`;
+    this.lockBreakPath = `${this.lockPath}.break`;
     this.now = now;
     this.lockTimeoutMs = lockTimeoutMs;
     this.staleLockMs = staleLockMs;
@@ -107,14 +108,58 @@ export class ReplyTokenStore {
   }
 
   #breakStaleLock() {
+    let breaker = null;
     try {
       const stat = fs.statSync(this.lockPath);
       if (Date.now() - stat.mtimeMs < this.staleLockMs) return false;
+      breaker = this.#acquireLockBreaker();
+      if (!breaker) return false;
+      const checked = fs.statSync(this.lockPath);
+      if (Date.now() - checked.mtimeMs < this.staleLockMs) return false;
       fs.unlinkSync(this.lockPath);
       return true;
     } catch (err) {
       if (err?.code === 'ENOENT') return true;
       throw err;
+    } finally {
+      if (breaker) this.#releaseLockBreaker(breaker);
+    }
+  }
+
+  #acquireLockBreaker() {
+    try {
+      const breaker = {
+        fd: fs.openSync(this.lockBreakPath, 'wx', 0o600),
+        id: `${process.pid}:${crypto.randomBytes(8).toString('hex')}`
+      };
+      try {
+        fs.writeFileSync(breaker.fd, breaker.id);
+        return breaker;
+      } catch (err) {
+        try {
+          fs.closeSync(breaker.fd);
+        } finally {
+          try {
+            fs.unlinkSync(this.lockBreakPath);
+          } catch {}
+        }
+        throw err;
+      }
+    } catch (err) {
+      if (err?.code === 'EEXIST') return null;
+      throw err;
+    }
+  }
+
+  #releaseLockBreaker(breaker) {
+    try {
+      fs.closeSync(breaker.fd);
+    } finally {
+      try {
+        if (fs.readFileSync(this.lockBreakPath, 'utf8') === breaker.id) {
+          fs.unlinkSync(this.lockBreakPath);
+        }
+      } catch {}
     }
   }
 

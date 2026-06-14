@@ -146,4 +146,44 @@ describe('reply token store concurrency', () => {
     expect(state[key]).toEqual(expect.objectContaining({ replyToken: 'raw-reply-token' }));
     expect(fs.existsSync(lockPath)).toBe(false);
   });
+
+  it('serializes concurrent stale-lock recovery across processes', async () => {
+    const dir = tempDir('line-reply-stale-lock-concurrency-');
+    const filePath = path.join(dir, 'reply.json');
+    const lockPath = `${filePath}.lock`;
+    const startFile = path.join(dir, 'start');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(lockPath, 'dead-holder');
+    const oldTime = new Date(Date.now() - 60_000);
+    fs.utimesSync(lockPath, oldTime, oldTime);
+
+    const creators = Array.from({ length: 8 }, (_, workerIndex) => {
+      const outFile = path.join(dir, `created-stale-${workerIndex}.json`);
+      return {
+        outFile,
+        promise: runWorker({
+          op: 'createMany',
+          filePath,
+          startFile,
+          outFile,
+          targetId: `U-stale-${workerIndex}`,
+          replyPrefix: `stale-${workerIndex}-`,
+          count: 10
+        })
+      };
+    });
+
+    fs.writeFileSync(startFile, 'go');
+
+    await expect(Promise.all(creators.map(worker => worker.promise))).resolves.toBeDefined();
+
+    const state = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    const createdKeys = creators.flatMap(worker => JSON.parse(fs.readFileSync(worker.outFile, 'utf8')));
+    expect(createdKeys).toHaveLength(80);
+    for (const key of createdKeys) {
+      expect(state[key]).toEqual(expect.objectContaining({ consumed: false }));
+    }
+    expect(fs.existsSync(lockPath)).toBe(false);
+    expect(fs.existsSync(`${lockPath}.break`)).toBe(false);
+  });
 });
