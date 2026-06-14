@@ -5,40 +5,124 @@ import { DATA_DIR } from './config.js';
 import { writeJsonAtomic } from './atomic-write.js';
 
 export const REPLY_TOKENS_PATH = path.join(DATA_DIR, 'reply-tokens.json');
+const DEFAULT_STALE_LOCK_MS = 5000;
+const DEFAULT_LOCK_TIMEOUT_MS = DEFAULT_STALE_LOCK_MS + 1000;
+const LOCK_RETRY_MS = 10;
+
+function sleepSync(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
 
 export class ReplyTokenStore {
-  constructor({ filePath = REPLY_TOKENS_PATH, now = () => Date.now() } = {}) {
+  constructor({
+    filePath = REPLY_TOKENS_PATH,
+    now = () => Date.now(),
+    lockTimeoutMs = DEFAULT_LOCK_TIMEOUT_MS,
+    staleLockMs = DEFAULT_STALE_LOCK_MS
+  } = {}) {
     this.filePath = filePath;
+    this.lockPath = `${filePath}.lock`;
     this.now = now;
+    this.lockTimeoutMs = lockTimeoutMs;
+    this.staleLockMs = staleLockMs;
   }
 
   create({ accountId, targetId, replyToken, ttlMs }) {
     if (!replyToken) return '';
-    const key = crypto.randomBytes(16).toString('hex');
-    const state = this.#read();
-    this.#prune(state);
-    state[key] = {
-      accountId,
-      targetId,
-      replyToken,
-      consumed: false,
-      expiresAt: this.now() + ttlMs
-    };
-    this.#write(state);
-    return key;
+    return this.#withLock(() => {
+      const key = crypto.randomBytes(16).toString('hex');
+      const state = this.#read();
+      this.#prune(state);
+      state[key] = {
+        accountId,
+        targetId,
+        replyToken,
+        consumed: false,
+        expiresAt: this.now() + ttlMs
+      };
+      this.#write(state);
+      return key;
+    });
   }
 
   consume(key) {
-    const state = this.#read();
-    this.#prune(state);
-    const entry = state[key];
-    if (!entry || entry.consumed || entry.expiresAt <= this.now()) {
+    return this.#withLock(() => {
+      const state = this.#read();
+      this.#prune(state);
+      const entry = state[key];
+      if (!entry || entry.consumed || entry.expiresAt <= this.now()) {
+        this.#write(state);
+        return null;
+      }
+      entry.consumed = true;
       this.#write(state);
-      return null;
+      return entry;
+    });
+  }
+
+  #withLock(fn) {
+    fs.mkdirSync(path.dirname(this.filePath), { recursive: true });
+    const lock = this.#acquireLock();
+    try {
+      return fn();
+    } finally {
+      try {
+        fs.closeSync(lock.fd);
+      } finally {
+        this.#releaseLock(lock.id);
+      }
     }
-    entry.consumed = true;
-    this.#write(state);
-    return entry;
+  }
+
+  #acquireLock() {
+    const startedAt = Date.now();
+    while (true) {
+      try {
+        const lock = {
+          fd: fs.openSync(this.lockPath, 'wx', 0o600),
+          id: `${process.pid}:${crypto.randomBytes(8).toString('hex')}`
+        };
+        try {
+          fs.writeFileSync(lock.fd, lock.id);
+          return lock;
+        } catch (err) {
+          try {
+            fs.closeSync(lock.fd);
+          } finally {
+            try {
+              fs.unlinkSync(this.lockPath);
+            } catch {}
+          }
+          throw err;
+        }
+      } catch (err) {
+        if (err?.code !== 'EEXIST') throw err;
+        if (this.#breakStaleLock()) continue;
+        if (Date.now() - startedAt >= this.lockTimeoutMs) {
+          throw new Error(`timed out waiting for reply token lock: ${this.lockPath}`);
+        }
+        sleepSync(LOCK_RETRY_MS);
+      }
+    }
+  }
+
+  #breakStaleLock() {
+    try {
+      const stat = fs.statSync(this.lockPath);
+      if (Date.now() - stat.mtimeMs < this.staleLockMs) return false;
+      fs.unlinkSync(this.lockPath);
+      return true;
+    } catch (err) {
+      if (err?.code === 'ENOENT') return true;
+      throw err;
+    }
+  }
+
+  #releaseLock(lockId) {
+    try {
+      if (fs.readFileSync(this.lockPath, 'utf8') !== lockId) return;
+      fs.unlinkSync(this.lockPath);
+    } catch {}
   }
 
   #read() {
