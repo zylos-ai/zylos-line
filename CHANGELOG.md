@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0 - 2026-06-09
+## 0.1.0 - 2026-06-15
 
 ### Added
 
@@ -35,6 +35,10 @@
 - Outbound media URL preflight rejects credentials, unsafe address ranges,
   unsafe redirects, encoded private IPv4 forms, and mismatched connected peers.
 - Admin status output redacts channel tokens and secrets.
+- Reply-token storage is concurrency-safe across the webhook service and
+  `zylos-line-send` processes: the read-modify-write transaction is guarded by a
+  cross-process file lock with stale-lock recovery, and atomic writes use
+  per-writer temp files to avoid concurrent clobbering.
 
 ### Known Follow-Ups
 
