@@ -182,4 +182,29 @@ describe('LINE inbound access control', () => {
       event: event({ type: 'room', roomId: 'R1', userId: 'Uany' })
     })).toEqual({ allowed: false, reason: 'group-unconfigured' });
   });
+
+  it('denies non-owner group messages when groupPolicy is disabled', () => {
+    expect(decideInboundAccess({
+      config: baseConfig({ groupPolicy: 'disabled', groups: { G1: { allowFrom: [] } } }),
+      event: event({ type: 'group', groupId: 'G1', userId: 'Uany' })
+    })).toEqual({ allowed: false, reason: 'group-disabled' });
+  });
+
+  it('allows a pairing-policy DM whose sender is already in dmAllowFrom', () => {
+    const result = decideInboundAccess({
+      config: baseConfig({ dmPolicy: 'pairing', dmAllowFrom: ['Uguest'] }),
+      event: event({ type: 'user', userId: 'Uguest' }),
+      text: 'hi',
+      loadPairing: () => ({ pending: {}, denied: {} }),
+      savePairing: vi.fn()
+    });
+    expect(result).toEqual({ allowed: true, reason: 'dm-pairing-approved' });
+  });
+
+  it('denies events with no resolvable target id (missing-target)', () => {
+    expect(decideInboundAccess({
+      config: baseConfig(),
+      event: event({ type: 'group' })
+    })).toEqual({ allowed: false, reason: 'missing-target' });
+  });
 });
