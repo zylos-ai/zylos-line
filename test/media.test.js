@@ -168,6 +168,26 @@ describe('LINE media helpers', () => {
     expect(result.filePath).toBe(path.join(dir, 'voice_1.m4a'));
   });
 
+  it('maps additional LINE audio content-types to proper extensions (F2)', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'line-media-'));
+    for (const [contentType, ext] of [['audio/m4a', '.m4a'], ['audio/x-aac', '.aac']]) {
+      const id = `aud_${ext.slice(1)}`;
+      const result = await downloadLineMessageContent({
+        messageId: id,
+        channelAccessToken: 'token',
+        config: { mediaMaxMb: 1 },
+        fetchImpl: async () => ({
+          ok: true,
+          status: 200,
+          headers: responseHeaders({ 'content-type': contentType, 'content-length': '3' }),
+          async arrayBuffer() { return Buffer.from('aud'); }
+        }),
+        mediaDir: dir
+      });
+      expect(result.filePath).toBe(path.join(dir, `${id}${ext}`));
+    }
+  });
+
   it('rejects inbound LINE media that exceeds the configured size cap', async () => {
     await expect(downloadLineMessageContent({
       messageId: 'msg_123',

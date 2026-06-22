@@ -362,4 +362,51 @@ describe('LINE webhook routes', () => {
     expect(sent[0].content).toContain('[file too large (over the 20 MB limit)]');
     expect(sent[0].content).not.toContain('---- file:');
   });
+
+  it('falls back to package/sticker IDs when a sticker has no keywords (F4)', async () => {
+    app = createApp({
+      sendToC4: vi.fn((channel, endpoint, content) => sent.push({ channel, endpoint, content })),
+      replyTokenStore: new ReplyTokenStore({ filePath: tempFile('reply.json'), now: () => 1000 }),
+      eventDedupeStore: new EventDedupeStore({ filePath: tempFile('dedupe.json'), now: () => 1000, ttlMs: 60_000 })
+    });
+    const body = {
+      destination: 'Ubot',
+      events: [{
+        type: 'message',
+        webhookEventId: 'evt-sticker-noskw',
+        replyToken: 'reply-sticker2',
+        source: { type: 'user', userId: 'U123' },
+        message: { type: 'sticker', id: 's2', packageId: '789', stickerId: '12' }
+      }]
+    };
+
+    await signedPost(app, '/line/webhook', body, 'root-secret').expect(200);
+
+    expect(sent).toHaveLength(1);
+    expect(sent[0].content).toContain('[Sticker 789/12]');
+  });
+
+  it('forwards location without coordinates as a label-only placeholder (F5)', async () => {
+    app = createApp({
+      sendToC4: vi.fn((channel, endpoint, content) => sent.push({ channel, endpoint, content })),
+      replyTokenStore: new ReplyTokenStore({ filePath: tempFile('reply.json'), now: () => 1000 }),
+      eventDedupeStore: new EventDedupeStore({ filePath: tempFile('dedupe.json'), now: () => 1000, ttlMs: 60_000 })
+    });
+    const body = {
+      destination: 'Ubot',
+      events: [{
+        type: 'message',
+        webhookEventId: 'evt-loc-nocoord',
+        replyToken: 'reply-loc2',
+        source: { type: 'user', userId: 'U123' },
+        message: { type: 'location', id: 'l2', title: 'Cafe', address: '1 Main St' }
+      }]
+    };
+
+    await signedPost(app, '/line/webhook', body, 'root-secret').expect(200);
+
+    expect(sent).toHaveLength(1);
+    expect(sent[0].content).toContain('[Location: Cafe — 1 Main St]');
+    expect(sent[0].content).not.toContain('undefined');
+  });
 });
