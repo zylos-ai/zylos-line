@@ -65,7 +65,7 @@ describe('lifecycle hooks', () => {
       enabled: true,
       dmPolicy: 'owner',
       groupPolicy: 'allowlist',
-      mediaMaxMb: 10,
+      mediaMaxMb: 20,
       requestMaxBytes: '1mb',
       channelAccessToken: '',
       channelSecret: ''
@@ -133,7 +133,7 @@ describe('lifecycle hooks', () => {
       webhookPath: '/line/webhook/local',
       dmPolicy: 'owner',
       groupPolicy: 'allowlist',
-      mediaMaxMb: 10,
+      mediaMaxMb: 20,
       requestMaxBytes: '1mb'
     }));
     expect(fs.statSync(paths.configPath).mode & 0o777).toBe(0o600);

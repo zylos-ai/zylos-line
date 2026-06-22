@@ -251,7 +251,7 @@ describe('LINE webhook routes', () => {
     expect(downloadMedia).toHaveBeenCalledWith({
       messageId: 'img_123',
       channelAccessToken: 'root-token',
-      config: expect.objectContaining({ mediaMaxMb: 10 })
+      config: expect.objectContaining({ mediaMaxMb: 20 })
     });
     expect(sent).toHaveLength(1);
     expect(sent[0].content).toContain('&lt;media:image&gt;');
@@ -284,5 +284,82 @@ describe('LINE webhook routes', () => {
     expect(downloadMedia).not.toHaveBeenCalled();
     expect(sent).toHaveLength(0);
     expect(JSON.stringify(fs.existsSync(replyTokenStore.filePath) ? JSON.parse(fs.readFileSync(replyTokenStore.filePath, 'utf8')) : {})).not.toContain('reply-bad-media');
+  });
+
+  it('forwards inbound stickers as a keyword placeholder without a content download (F4)', async () => {
+    const downloadMedia = vi.fn();
+    app = createApp({
+      sendToC4: vi.fn((channel, endpoint, content) => sent.push({ channel, endpoint, content })),
+      replyTokenStore: new ReplyTokenStore({ filePath: tempFile('reply.json'), now: () => 1000 }),
+      eventDedupeStore: new EventDedupeStore({ filePath: tempFile('dedupe.json'), now: () => 1000, ttlMs: 60_000 }),
+      downloadMedia
+    });
+    const body = {
+      destination: 'Ubot',
+      events: [{
+        type: 'message',
+        webhookEventId: 'evt-sticker',
+        replyToken: 'reply-sticker',
+        source: { type: 'user', userId: 'U123' },
+        message: { type: 'sticker', id: 's1', packageId: '11537', stickerId: '52002734', keywords: ['Love', 'Happy'] }
+      }]
+    };
+
+    await signedPost(app, '/line/webhook', body, 'root-secret').expect(200);
+
+    expect(downloadMedia).not.toHaveBeenCalled();
+    expect(sent).toHaveLength(1);
+    expect(sent[0].content).toContain('[Sticker: Love, Happy]');
+  });
+
+  it('forwards inbound location as a text placeholder with title, address and coordinates (F5)', async () => {
+    app = createApp({
+      sendToC4: vi.fn((channel, endpoint, content) => sent.push({ channel, endpoint, content })),
+      replyTokenStore: new ReplyTokenStore({ filePath: tempFile('reply.json'), now: () => 1000 }),
+      eventDedupeStore: new EventDedupeStore({ filePath: tempFile('dedupe.json'), now: () => 1000, ttlMs: 60_000 })
+    });
+    const body = {
+      destination: 'Ubot',
+      events: [{
+        type: 'message',
+        webhookEventId: 'evt-loc',
+        replyToken: 'reply-loc',
+        source: { type: 'user', userId: 'U123' },
+        message: { type: 'location', id: 'l1', title: 'Cafe', address: '1 Main St', latitude: 35.6595, longitude: 139.7005 }
+      }]
+    };
+
+    await signedPost(app, '/line/webhook', body, 'root-secret').expect(200);
+
+    expect(sent).toHaveLength(1);
+    expect(sent[0].content).toContain('[Location: Cafe — 1 Main St (35.6595, 139.7005)]');
+  });
+
+  it('does not silently drop oversized/failed media — forwards a descriptive placeholder (F3)', async () => {
+    const downloadMedia = vi.fn(async () => { throw new Error('inbound media exceeds size limit'); });
+    app = createApp({
+      sendToC4: vi.fn((channel, endpoint, content) => sent.push({ channel, endpoint, content })),
+      replyTokenStore: new ReplyTokenStore({ filePath: tempFile('reply.json'), now: () => 1000 }),
+      eventDedupeStore: new EventDedupeStore({ filePath: tempFile('dedupe.json'), now: () => 1000, ttlMs: 60_000 }),
+      downloadMedia,
+      logger: { warn: vi.fn(), debug: vi.fn() }
+    });
+    const body = {
+      destination: 'Ubot',
+      events: [{
+        type: 'message',
+        webhookEventId: 'evt-bigfile',
+        replyToken: 'reply-bigfile',
+        source: { type: 'user', userId: 'U123' },
+        message: { type: 'file', id: 'file_123' }
+      }]
+    };
+
+    await signedPost(app, '/line/webhook', body, 'root-secret').expect(200);
+
+    expect(downloadMedia).toHaveBeenCalled();
+    expect(sent).toHaveLength(1);
+    expect(sent[0].content).toContain('[file too large (over the 20 MB limit)]');
+    expect(sent[0].content).not.toContain('---- file:');
   });
 });

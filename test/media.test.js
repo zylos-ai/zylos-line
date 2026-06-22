@@ -138,12 +138,34 @@ describe('LINE media helpers', () => {
       mediaDir: dir
     });
 
-    expect(fetchImpl).toHaveBeenCalledWith('https://api.line.me/v2/bot/message/msg_123/content', expect.objectContaining({
+    expect(fetchImpl).toHaveBeenCalledWith('https://api-data.line.me/v2/bot/message/msg_123/content', expect.objectContaining({
       method: 'GET',
       headers: { Authorization: 'Bearer token' }
     }));
     expect(result.filePath).toBe(path.join(dir, 'msg_123.png'));
     expect(fs.readFileSync(result.filePath, 'utf8')).toBe('data');
+  });
+
+  it('maps LINE voice content-type audio/x-m4a to a .m4a extension, not .bin (F2)', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'line-media-'));
+    const fetchImpl = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      headers: responseHeaders({ 'content-type': 'audio/x-m4a', 'content-length': '4' }),
+      async arrayBuffer() {
+        return Buffer.from('aud!');
+      }
+    }));
+
+    const result = await downloadLineMessageContent({
+      messageId: 'voice_1',
+      channelAccessToken: 'token',
+      config: { mediaMaxMb: 1 },
+      fetchImpl,
+      mediaDir: dir
+    });
+
+    expect(result.filePath).toBe(path.join(dir, 'voice_1.m4a'));
   });
 
   it('rejects inbound LINE media that exceeds the configured size cap', async () => {

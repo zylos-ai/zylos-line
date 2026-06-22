@@ -37,7 +37,7 @@ Default config is intentionally conservative:
 | `dmAllowFrom` | `[]` | Used by `allowlist` and approved pairing flows. |
 | `groupPolicy` | `allowlist` | Groups/rooms must be configured by default. |
 | `groups` | `{}` | Configured group/room `allowFrom: []` means allow all senders in that conversation. |
-| `mediaMaxMb` | `10` | Applies to inbound LINE media and outbound media URL preflight. |
+| `mediaMaxMb` | `20` | Applies to inbound LINE media and outbound media URL preflight. Media exceeding this is not dropped silently — the agent receives a descriptive placeholder. |
 | `requestMaxBytes` | `1mb` | Express raw-body limit for LINE webhooks. |
 | `replyTokenTtlMs` | `60000` | Local reply-token handle lifetime. |
 | `webhookDedupTtlMs` | `86400000` | `webhookEventId` dedupe lifetime. |
@@ -63,7 +63,7 @@ or through environment variables:
   "webhookPath": "/line/webhook",
   "dmPolicy": "owner",
   "groupPolicy": "allowlist",
-  "mediaMaxMb": 10,
+  "mediaMaxMb": 20,
   "requestMaxBytes": "1mb"
 }
 ```
