@@ -1,4 +1,7 @@
 export const LINE_API_BASE = 'https://api.line.me';
+// Binary message content (image/video/audio/file) is served from a separate
+// host — the regular api.line.me host returns 404 for the /content endpoint.
+export const LINE_API_DATA_BASE = 'https://api-data.line.me';
 
 async function parseResponse(response) {
   const text = await response.text();

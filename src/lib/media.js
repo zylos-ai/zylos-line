@@ -4,7 +4,7 @@ import https from 'node:https';
 import net from 'node:net';
 import path from 'node:path';
 import { MEDIA_DIR } from './config.js';
-import { LINE_API_BASE } from './line-api.js';
+import { LINE_API_DATA_BASE } from './line-api.js';
 
 export const MAX_REDIRECTS = 3;
 
@@ -23,7 +23,10 @@ const EXT_BY_TYPE = new Map([
   ['video/mp4', '.mp4'],
   ['audio/mpeg', '.mp3'],
   ['audio/mp4', '.m4a'],
+  ['audio/x-m4a', '.m4a'],
+  ['audio/m4a', '.m4a'],
   ['audio/aac', '.aac'],
+  ['audio/x-aac', '.aac'],
   ['application/pdf', '.pdf']
 ]);
 
@@ -93,7 +96,7 @@ export async function downloadLineMessageContent({
   if (!isSafeLineMessageId(messageId)) throw new Error('invalid LINE message id');
   if (!channelAccessToken) throw new Error('missing LINE channelAccessToken');
 
-  const response = await fetchImpl(`${LINE_API_BASE}/v2/bot/message/${encodeURIComponent(messageId)}/content`, {
+  const response = await fetchImpl(`${LINE_API_DATA_BASE}/v2/bot/message/${encodeURIComponent(messageId)}/content`, {
     method: 'GET',
     headers: { Authorization: `Bearer ${channelAccessToken}` },
     signal: AbortSignal.timeout(15000)

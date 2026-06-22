@@ -29,7 +29,7 @@ export const DEFAULT_CONFIG = {
   message: {
     context_messages: 10
   },
-  mediaMaxMb: 10,
+  mediaMaxMb: 20,
   replyTokenTtlMs: 60_000,
   webhookDedupTtlMs: 24 * 60 * 60 * 1000,
   requestMaxBytes: '1mb'

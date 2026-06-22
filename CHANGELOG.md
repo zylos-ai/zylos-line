@@ -40,9 +40,34 @@
   cross-process file lock with stale-lock recovery, and atomic writes use
   per-writer temp files to avoid concurrent clobbering.
 
+### Fixed
+
+- Inbound media (image/video/audio/file) was silently dropped: content was
+  fetched from `api.line.me`, but LINE serves binary message content from
+  `api-data.line.me` (the former 404s). All media downloads now use the correct
+  content host. *(Found via live walkthrough; would have shipped broken.)*
+- Voice/audio content typed `audio/x-m4a` (and `audio/m4a`, `audio/x-aac`) now
+  map to correct extensions instead of falling back to `.bin`.
+- Media that exceeds the size cap or otherwise fails to download is no longer
+  silently dropped — the agent receives a descriptive placeholder
+  (e.g. `[file too large (over the 20 MB limit)]`) so it can tell the user.
+
+### Added (post-walkthrough)
+
+- Inbound **stickers** are forwarded as `[Sticker: <keywords>]` (from the LINE
+  sticker keywords; falls back to package/sticker IDs). No content download.
+- Inbound **location** messages are forwarded as
+  `[Location: <title> — <address> (<lat>, <lon>)]`.
+
+### Changed
+
+- Default `mediaMaxMb` raised from 10 to 20.
+
 ### Known Follow-Ups
 
 - Richer message helper builders beyond current text and media markers.
 - Config hot reload; account and config changes require a restart.
 - LINE profile and group display-name resolution; C4 envelopes currently use
   raw LINE IDs.
+- Lifecycle/event surfacing (follow/unfollow, join/leave) and a follow
+  auto-greeting (tracked for v0.1.1).

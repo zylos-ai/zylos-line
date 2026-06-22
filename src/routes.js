@@ -27,10 +27,28 @@ function eventText(event) {
   return '';
 }
 
+function stickerPlaceholder(message = {}) {
+  const keywords = Array.isArray(message.keywords) ? message.keywords.filter(Boolean) : [];
+  if (keywords.length > 0) return `[Sticker: ${keywords.join(', ')}]`;
+  const ids = [message.packageId, message.stickerId].filter(Boolean).join('/');
+  return ids ? `[Sticker ${ids}]` : '[Sticker]';
+}
+
+function locationPlaceholder(message = {}) {
+  const label = [message.title, message.address].filter(Boolean).join(' — ');
+  const lat = message.latitude;
+  const lon = message.longitude;
+  const coords = (typeof lat === 'number' && typeof lon === 'number') ? `(${lat}, ${lon})` : '';
+  const inner = [label, coords].filter(Boolean).join(' ');
+  return inner ? `[Location: ${inner}]` : '[Location]';
+}
+
 function eventPlaceholder(event) {
   if (event.type !== 'message') return '';
   if (event.message?.type === 'text') return event.message.text || '';
   if (MEDIA_MESSAGE_TYPES.has(event.message?.type)) return `<media:${event.message.type}>`;
+  if (event.message?.type === 'sticker') return stickerPlaceholder(event.message);
+  if (event.message?.type === 'location') return locationPlaceholder(event.message);
   return '';
 }
 
@@ -126,6 +144,7 @@ export function registerRoutes(app, deps = {}) {
         }
 
         let filePath = '';
+        let messageText = text;
         if (MEDIA_MESSAGE_TYPES.has(event.message?.type)) {
           if (!isSafeLineMessageId(event.message?.id)) {
             logger.warn?.('[line] dropped media event with invalid message id');
@@ -140,7 +159,13 @@ export function registerRoutes(app, deps = {}) {
             filePath = media.filePath;
           } catch (err) {
             logger.warn?.(`[line] failed to download media: ${err.message}`);
-            continue;
+            // Don't silently drop — forward a descriptive placeholder so the
+            // agent is aware and can tell the user (vs. the message vanishing).
+            const tooBig = /size limit/i.test(err.message || '');
+            const reason = tooBig
+              ? `too large (over the ${cfg.mediaMaxMb} MB limit)`
+              : 'could not be downloaded';
+            messageText = `[${event.message.type} ${reason}]`;
           }
         }
 
@@ -156,7 +181,7 @@ export function registerRoutes(app, deps = {}) {
           userId: event.source?.userId,
           replyKey
         });
-        const content = formatMessage(type, event.source?.userId || 'unknown', text, { groupName: targetId, filePath });
+        const content = formatMessage(type, event.source?.userId || 'unknown', messageText, { groupName: targetId, filePath });
         sendToC4('line', endpoint, content);
       }
 
