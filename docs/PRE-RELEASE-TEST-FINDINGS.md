@@ -137,7 +137,7 @@ additive, test-covered. Ship together, then re-review → re-tag v0.1.0.
 - **F3** failed/oversized media → descriptive placeholder (no silent drop); default cap raised 10→20MB — ✅ implemented + tested
 - **F4** inbound stickers (keywords→text) — ✅ implemented + tested
 - **F5** inbound location (title/address/coords→text) — ✅ implemented + tested
-- **Tests:** 87/87 pass (was 83 + 4 new for F2–F5).
+- **Tests:** 93/93 pass (was 83; +4 for F2–F5, +3 for the access-control deny/leak paths surfaced by the cross-review).
 - Because F1 changes shipped code, head moves off the last-reviewed commit →
   **production-readiness re-review with Local required before re-tagging** (Felix, 2026-06-22).
 
