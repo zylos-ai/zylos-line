@@ -77,6 +77,52 @@ zylos-line-send 'Uxxxxxxxx|type:dm|account:default' 'hello'
 echo '[MEDIA:image] https://example.com/photo.png' | zylos-line-send 'Uxxxxxxxx|type:dm|account:default'
 ```
 
+## Session Groups (multi-session Core)
+
+With a zylos-core that supports multi-session, each inbound message carries a
+session group, so every LINE conversation gets its own conversation thread.
+Replies still go through the same `reply via` path; the endpoint format and
+`zylos-line-send` are unchanged.
+
+| Conversation | Endpoint | Session group | Example |
+|---|---|---|---|
+| 1:1 chat | `<userId>\|type:dm\|account:<id>\|...` | `dm-<account>:<userId>` | `dm-default:Uxxxxxxxx` |
+| Group | `<groupId>\|type:group\|account:<id>\|...` | `group-<account>:<groupId>` | `group-default:Cxxxxxxxx` |
+| Multi-person chat | `<roomId>\|type:room\|account:<id>\|...` | `room-<account>:<roomId>` | `room-default:Rxxxxxxxx` |
+| Pairing request notice | `admin\|type:dm-pairing\|...` | overall group (`line`) | |
+
+Core adds the `line:` namespace (e.g. `line:dm-default:Uxxxxxxxx`).
+
+- These rules are fixed. Group names are Core's memory keys, so changing them
+  would need a migration together with Core.
+- One group per LINE account and conversation: the same person chatting with
+  two accounts gets two groups. Account ids must match
+  `[A-Za-z0-9][A-Za-z0-9_.-]*` to be mapped; the service warns at startup
+  about any account id that cannot be.
+- Shorthand endpoints map like the inbound ones: a missing `account:` is
+  `default`, and a missing `type:` follows the id prefix (U -> dm, C -> group,
+  R -> room). On a multi-session Core every outbound send is checked with
+  `scripts/session-group.js`, so other shorthands are refused by Core.
+- Ids are never truncated or hashed; an endpoint that cannot be mapped (or a
+  name over 95 characters) is not sent to Core, and the user is asked to try
+  again later. It never falls back to the overall group. `user:` and
+  `replyKey:` never affect the group.
+- The group is derived and passed only if the installed Core lists
+  `--session-group` in `c4-receive-options.json` (re-read on every message).
+  Older Cores receive exactly the same arguments as before.
+- If Core rejects a message, Core's text goes only to the log. The user gets a
+  "try again later" notice when Core stored nothing, a "may not have reached
+  me" notice when the outcome is unknown, and nothing when Core already stored
+  it; at most one notice per conversation every 5 minutes. The notice uses the
+  event's reply token, then push. c4-receive runs without a timeout and is
+  retried (once, after 2s) only when the process could not be started. NUL
+  bytes are removed from the content.
+
+```bash
+node ~/zylos/.claude/skills/line/scripts/session-group.js "<endpoint>"
+# prints e.g. dm-default:Uxxxxxxxx (without "line:"); empty output = overall group
+```
+
 ## Admin
 
 ```bash
