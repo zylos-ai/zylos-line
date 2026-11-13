@@ -113,4 +113,18 @@ describe('sendToC4', () => {
     expect(failed.calls.length).toBe(2);
     expect(failed.notices).toEqual([UNCERTAIN_REPLY]);
   });
+
+  it('content c4-receive cannot be started with (NUL byte) is reported, not thrown or retried', async () => {
+    let calls = 0;
+    const notices = [];
+    const send = createC4Sender({
+      c4Receive,
+      execFileImpl: () => { calls += 1; throw Object.assign(new TypeError('null bytes'), { code: 'ERR_INVALID_ARG_VALUE' }); },
+      retryDelayMs: 1,
+      logger: quiet
+    });
+    expect(await send('line', ENDPOINT, 'a\0b', { onNotice: (text) => notices.push(text) })).toBe('not_stored');
+    expect(calls).toBe(1);
+    expect(notices).toEqual([GENERIC_REJECT_REPLY]);
+  });
 });

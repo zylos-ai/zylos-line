@@ -16,6 +16,7 @@ const MAPPED = [
   [buildEndpoint(R, { type: 'room', accountId: 'shop_2', userId: U }), `room-shop_2:${R}`],
   // a second account talking to the same user is a separate conversation
   [buildEndpoint(U, { type: 'dm', accountId: 'alt' }), `dm-alt:${U}`],
+  [buildEndpoint(U, { type: 'dm', accountId: 'my.shop' }), `dm-my.shop:${U}`],
   // per-message parts (user, replyKey) never affect the group
   [buildEndpoint(C, { type: 'group', accountId: 'default', userId: 'Uother', replyKey: 'other' }), `group-default:${C}`],
 ];

@@ -23,7 +23,7 @@ export const SESSION_GROUP_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_.:-]*$/;
 /** Endpoint of the pairing notice sent to the agent, not a LINE conversation. */
 export const PAIRING_NOTICE_TYPE = 'dm-pairing';
 
-const ACCOUNT_ID = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
+const ACCOUNT_ID = /^[A-Za-z0-9][A-Za-z0-9_.-]*$/;
 const LINE_ID = /^[A-Za-z0-9]+$/;
 const PREFIX = { dm: 'dm', group: 'group', room: 'room' };
 

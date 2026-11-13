@@ -97,7 +97,7 @@ Core adds the `line:` namespace (e.g. `line:dm-default:Uxxxxxxxx`).
   would need a migration together with Core.
 - One group per LINE account and conversation: the same person chatting with
   two accounts gets two groups. Account ids must match
-  `[A-Za-z0-9][A-Za-z0-9_-]*` to be mapped.
+  `[A-Za-z0-9][A-Za-z0-9_.-]*` to be mapped.
 - Ids are never truncated or hashed; an endpoint that cannot be mapped (or a
   name over 95 characters) is not sent to Core, and the user is asked to try
   again later. It never falls back to the overall group. `user:` and

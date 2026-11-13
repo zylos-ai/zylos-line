@@ -66,7 +66,12 @@ export function createC4Sender({
   logger = console
 } = {}) {
   const run = (args) => new Promise((resolve) => {
-    execFileImpl('node', args, { encoding: 'utf8' }, (error, stdout) => resolve({ error, stdout }));
+    try {
+      execFileImpl('node', args, { encoding: 'utf8' }, (error, stdout) => resolve({ error, stdout }));
+    } catch (error) {
+      // Invalid arguments (e.g. a NUL byte in the content) throw before spawning.
+      resolve({ error, invalidArgs: true });
+    }
   });
 
   /**
@@ -110,7 +115,11 @@ export function createC4Sender({
 
     for (let attempt = 1; ; attempt += 1) {
       const args = buildC4ReceiveArgs({ c4Receive, source, endpoint, content, sessionGroup });
-      const { error, stdout } = await run(args);
+      const { error, invalidArgs, stdout } = await run(args);
+      if (invalidArgs) {
+        logger.error(`[line] C4 receive could not start (invalid arguments), not stored: ${error.message}`);
+        return notify('not_stored', GENERIC_REJECT_REPLY);
+      }
       const response = parseC4Response(error?.stdout || stdout);
 
       if (response && response.ok === false && response.error) {
