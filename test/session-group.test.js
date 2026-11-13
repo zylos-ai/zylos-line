@@ -3,7 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { buildEndpoint } from '../src/lib/format.js';
-import { isValidSessionGroup, sessionGroupFromEndpoint } from '../src/lib/session-group.js';
+import { accountIdProblem, isValidSessionGroup, sessionGroupFromEndpoint } from '../src/lib/session-group.js';
 
 const script = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../scripts/session-group.js');
 const U = `U${'a'.repeat(32)}`;
@@ -19,12 +19,16 @@ const MAPPED = [
   [buildEndpoint(U, { type: 'dm', accountId: 'my.shop' }), `dm-my.shop:${U}`],
   // per-message parts (user, replyKey) never affect the group
   [buildEndpoint(C, { type: 'group', accountId: 'default', userId: 'Uother', replyKey: 'other' }), `group-default:${C}`],
+  // shorthand accepted by scripts/send.js maps like the inbound endpoint
+  [U, `dm-default:${U}`],
+  [`${U}|account:default`, `dm-default:${U}`],
+  [`${C}|type:group`, `group-default:${C}`],
+  [`${R}|account:shop_2`, `room-shop_2:${R}`],
 ];
 
 const INVALID = [
   '',
-  `${U}|account:default`,                  // no type
-  `${U}|type:dm`,                          // no account (never guessed)
+  `X${'a'.repeat(32)}|account:default`,    // no type and no U/C/R prefix
   `${U}|type:unknown|account:default`,
   `${U}|type:dm|account:a:b`,              // ':' in account breaks reversibility
   `${U}|type:dm|account:`,
@@ -42,7 +46,7 @@ describe('session groups', () => {
   });
 
   it('is reversible to account and conversation id', () => {
-    for (const [endpoint, group] of MAPPED) {
+    for (const [endpoint, group] of MAPPED.slice(0, 6)) {
       const [prefix, rest] = [group.slice(0, group.indexOf('-')), group.slice(group.indexOf('-') + 1)];
       const [account, targetId] = rest.split(':');
       expect(endpoint.startsWith(`${targetId}|type:${prefix}|account:${account}`), endpoint).toBe(true);
@@ -72,7 +76,7 @@ describe('session groups', () => {
   });
 
   it('CLI failure exits 1 with nothing on stdout', () => {
-    for (const args of [[], ['a', 'b'], [''], [`${U}|type:dm`]]) {
+    for (const args of [[], ["a", "b"], [""], ["bad id|type:dm"]]) {
       let error;
       try {
         execFileSync(process.execPath, [script, ...args], { stdio: 'pipe' });
@@ -83,5 +87,10 @@ describe('session groups', () => {
       expect(error.stdout.toString()).toBe('');
       expect(error.stderr.toString()).not.toBe('');
     }
+  });
+
+  it('reports account ids that cannot be mapped, before any message arrives', () => {
+    for (const id of ['default', 'shop_2', 'my.shop']) expect(accountIdProblem(id), id).toBeNull();
+    for (const id of ['shop 1', '店铺', 'a:b', '_x', 'x'.repeat(58)]) expect(accountIdProblem(id), id).toBeTypeOf('string');
   });
 });

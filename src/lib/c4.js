@@ -5,8 +5,8 @@ import { parseC4Response } from './format.js';
 import { sessionGroupFromEndpoint } from './session-group.js';
 
 export const DEFAULT_C4_RECEIVE = path.join(
-  process.env.HOME || '',
-  'zylos/.claude/skills/comm-bridge/scripts/c4-receive.js'
+  process.env.ZYLOS_DIR || path.join(process.env.HOME || '', 'zylos'),
+  '.claude/skills/comm-bridge/scripts/c4-receive.js'
 );
 
 export const GENERIC_REJECT_REPLY = "Sorry, I couldn't take this message right now. Please try again later.";
@@ -67,9 +67,9 @@ export function createC4Sender({
 } = {}) {
   const run = (args) => new Promise((resolve) => {
     try {
-      execFileImpl('node', args, { encoding: 'utf8' }, (error, stdout) => resolve({ error, stdout }));
+      execFileImpl(process.execPath, args, { encoding: 'utf8' }, (error, stdout) => resolve({ error, stdout }));
     } catch (error) {
-      // Invalid arguments (e.g. a NUL byte in the content) throw before spawning.
+      // Invalid arguments (e.g. a NUL byte in the endpoint) throw before spawning.
       resolve({ error, invalidArgs: true });
     }
   });
@@ -85,7 +85,8 @@ export function createC4Sender({
    * c4-receive runs without a timeout: Core may still be routing the message
    * or sending a status notice after storing it, and it has no inbound
    * idempotency key. A call that is stored or whose outcome is unknown is never
-   * retried; only a call that never started is retried once.
+   * retried; only a call that never started is retried once (if it never
+   * starts, nothing was stored). NUL bytes are removed from the content.
    *
    * @param {object} [callbacks]
    * @param {(text: string) => void} [callbacks.onNotice] - called with the text
@@ -113,8 +114,9 @@ export function createC4Sender({
       }
     }
 
+    const safeContent = String(content).replace(/\0/g, '');
     for (let attempt = 1; ; attempt += 1) {
-      const args = buildC4ReceiveArgs({ c4Receive, source, endpoint, content, sessionGroup });
+      const args = buildC4ReceiveArgs({ c4Receive, source, endpoint, content: safeContent, sessionGroup });
       const { error, invalidArgs, stdout } = await run(args);
       if (invalidArgs) {
         logger.error(`[line] C4 receive could not start (invalid arguments), not stored: ${error.message}`);
@@ -138,9 +140,13 @@ export function createC4Sender({
         return 'sent';
       }
 
-      if (!neverStarted(error) || attempt >= 2) {
+      if (!neverStarted(error)) {
         logger.error(`[line] C4 send failed, outcome unknown, not resending: ${error.message}`);
         return notify('uncertain', UNCERTAIN_REPLY);
+      }
+      if (attempt >= 2) {
+        logger.error(`[line] C4 receive did not start after retry, not stored: ${error.message}`);
+        return notify('not_stored', GENERIC_REJECT_REPLY);
       }
 
       logger.warn(`[line] C4 receive did not start, retrying in ${retryDelayMs / 1000}s: ${error.message}`);

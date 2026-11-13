@@ -97,7 +97,12 @@ Core adds the `line:` namespace (e.g. `line:dm-default:Uxxxxxxxx`).
   would need a migration together with Core.
 - One group per LINE account and conversation: the same person chatting with
   two accounts gets two groups. Account ids must match
-  `[A-Za-z0-9][A-Za-z0-9_.-]*` to be mapped.
+  `[A-Za-z0-9][A-Za-z0-9_.-]*` to be mapped; the service warns at startup
+  about any account id that cannot be.
+- Shorthand endpoints map like the inbound ones: a missing `account:` is
+  `default`, and a missing `type:` follows the id prefix (U -> dm, C -> group,
+  R -> room). On a multi-session Core every outbound send is checked with
+  `scripts/session-group.js`, so other shorthands are refused by Core.
 - Ids are never truncated or hashed; an endpoint that cannot be mapped (or a
   name over 95 characters) is not sent to Core, and the user is asked to try
   again later. It never falls back to the overall group. `user:` and
@@ -108,9 +113,10 @@ Core adds the `line:` namespace (e.g. `line:dm-default:Uxxxxxxxx`).
 - If Core rejects a message, Core's text goes only to the log. The user gets a
   "try again later" notice when Core stored nothing, a "may not have reached
   me" notice when the outcome is unknown, and nothing when Core already stored
-  it. The notice uses the event's reply token, then push. c4-receive runs
-  without a timeout and is retried (once, after 2s) only when the process could
-  not be started.
+  it; at most one notice per conversation every 5 minutes. The notice uses the
+  event's reply token, then push. c4-receive runs without a timeout and is
+  retried (once, after 2s) only when the process could not be started. NUL
+  bytes are removed from the content.
 
 ```bash
 node ~/zylos/.claude/skills/line/scripts/session-group.js "<endpoint>"

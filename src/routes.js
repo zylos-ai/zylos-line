@@ -3,7 +3,7 @@ import { findAccountByPath, getAccounts, getConfig } from './lib/config.js';
 import { verifyLineSignature } from './lib/signature.js';
 import { EventDedupeStore } from './lib/event-dedupe.js';
 import { ReplyTokenStore } from './lib/reply-token-store.js';
-import { buildEndpoint, formatMessage, lineSourceType, lineTargetId } from './lib/format.js';
+import { buildEndpoint, formatMessage, lineSourceType, lineTargetId, parseEndpoint } from './lib/format.js';
 import { decideInboundAccess } from './lib/access.js';
 import { downloadLineMessageContent, isSafeLineMessageId } from './lib/media.js';
 import { sendContent } from '../scripts/send.js';
@@ -21,6 +21,7 @@ function safeJsonParse(rawBody) {
 }
 
 const MEDIA_MESSAGE_TYPES = new Set(['image', 'video', 'audio', 'file']);
+const NOTICE_COOLDOWN_MS = 5 * 60 * 1000;
 
 function eventText(event) {
   if (event.type !== 'message') return '';
@@ -62,11 +63,25 @@ export function registerRoutes(app, deps = {}) {
     decideAccess = decideInboundAccess,
     downloadMedia = downloadLineMessageContent,
     sendNotice = (endpoint, text) => sendContent(endpoint, text),
+    noticeCooldownMs = NOTICE_COOLDOWN_MS,
+    now = Date.now,
     logger = console
   } = deps;
 
-  // Tell the LINE user when the agent will not answer (reply token first, then push).
+  // Tell the LINE user when the agent will not answer (reply token first, then
+  // push), at most once per conversation per cooldown: in a group every member
+  // message is forwarded, so a Core outage must not answer each one.
+  const noticeSentAt = new Map();
   const notifyUser = (endpoint, text) => {
+    const { account, targetId } = parseEndpoint(endpoint);
+    const key = `${account}:${targetId}`;
+    const at = now();
+    if (at - (noticeSentAt.get(key) ?? -Infinity) < noticeCooldownMs) {
+      logger.debug?.(`[line] notice to ${key} suppressed (cooldown)`);
+      return;
+    }
+    for (const [k, t] of noticeSentAt) if (at - t >= noticeCooldownMs) noticeSentAt.delete(k);
+    noticeSentAt.set(key, at);
     Promise.resolve()
       .then(() => sendNotice(endpoint, text))
       .catch((err) => logger.warn?.(`[line] failed to send notice: ${err.message}`));

@@ -4,7 +4,8 @@ import { randomBytes } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createApp } from './routes.js';
-import { DATA_DIR, ensureRuntimeDirs, getConfig, loadConfig } from './lib/config.js';
+import { DATA_DIR, ensureRuntimeDirs, getAccounts, getConfig, loadConfig } from './lib/config.js';
+import { accountIdProblem } from './lib/session-group.js';
 import { sendToC4 } from './lib/c4.js';
 import { EventDedupeStore } from './lib/event-dedupe.js';
 import { ReplyTokenStore } from './lib/reply-token-store.js';
@@ -29,6 +30,15 @@ function cryptoRandom() {
 
 const config = loadConfig();
 ensureRuntimeDirs();
+
+// On a multi-session Core a message is only accepted with a session group,
+// which includes the account id. Warn now instead of failing every message.
+for (const account of getAccounts(config)) {
+  const problem = accountIdProblem(account.id);
+  if (problem) {
+    console.warn(`[line] Account id ${JSON.stringify(account.id)} cannot be used in a session group (${problem}); on a multi-session Core every message to this account will be refused. Rename it in config.json (letters, digits, _ . -).`);
+  }
+}
 
 const app = createApp({
   internalToken: ensureInternalToken(),

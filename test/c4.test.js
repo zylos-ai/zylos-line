@@ -25,7 +25,7 @@ const spawnFailure = () => ({ error: Object.assign(new Error('spawn node ENOENT'
 function sender(results) {
   const calls = [];
   const execFileImpl = (cmd, args, options, cb) => {
-    calls.push({ args, options });
+    calls.push({ cmd, args, options });
     const result = results[Math.min(calls.length - 1, results.length - 1)];
     setImmediate(() => cb(result.error ?? null, result.stdout ?? '', ''));
   };
@@ -61,6 +61,7 @@ describe('sendToC4', () => {
     expect(await s.run()).toBe('sent');
     expect(s.calls[0].args).toEqual([...BASE_ARGS, '--session-group', GROUP]);
     expect(s.calls[0].options.timeout).toBeUndefined();
+    expect(s.calls[0].cmd).toBe(process.execPath);
     expect(s.notices).toEqual([]);
   });
 
@@ -73,7 +74,7 @@ describe('sendToC4', () => {
 
   it('unmappable endpoint on multi-session Core is never sent', async () => {
     const s = sender([{ stdout: '{"ok":true}' }]);
-    expect(await s.run(`${U}|type:dm`)).toBe('not_stored');
+    expect(await s.run(`bad id|type:dm`)).toBe('not_stored');
     expect(s.calls).toEqual([]);
     expect(s.notices).toEqual([GENERIC_REJECT_REPLY]);
   });
@@ -108,10 +109,11 @@ describe('sendToC4', () => {
     expect(ok.calls[1].args).toEqual([...BASE_ARGS, '--session-group', GROUP]);
     expect(ok.notices).toEqual([]);
 
+    // Never started twice: nothing was stored, so "try again later".
     const failed = sender([spawnFailure(), spawnFailure()]);
-    expect(await failed.run()).toBe('uncertain');
+    expect(await failed.run()).toBe('not_stored');
     expect(failed.calls.length).toBe(2);
-    expect(failed.notices).toEqual([UNCERTAIN_REPLY]);
+    expect(failed.notices).toEqual([GENERIC_REJECT_REPLY]);
   });
 
   it('content c4-receive cannot be started with (NUL byte) is reported, not thrown or retried', async () => {
@@ -126,5 +128,16 @@ describe('sendToC4', () => {
     expect(await send('line', ENDPOINT, 'a\0b', { onNotice: (text) => notices.push(text) })).toBe('not_stored');
     expect(calls).toBe(1);
     expect(notices).toEqual([GENERIC_REJECT_REPLY]);
+  });
+
+  it('removes NUL bytes from the content instead of failing the message', async () => {
+    const calls = [];
+    const send = createC4Sender({
+      c4Receive,
+      execFileImpl: (cmd, args, options, cb) => { calls.push(args); setImmediate(() => cb(null, '{"ok":true}', '')); },
+      logger: quiet
+    });
+    expect(await send('line', ENDPOINT, 'a\0b')).toBe('sent');
+    expect(calls[0][calls[0].indexOf('--content') + 1]).toBe('ab');
   });
 });

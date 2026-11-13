@@ -8,6 +8,9 @@
  *   `<groupId>|type:group|account:<id>|...` -> group-<account>:<groupId>
  *   `<roomId>|type:room|account:<id>|...`   -> room-<account>:<roomId>
  *   `admin|type:dm-pairing|...` (pairing notice to the agent) -> '' (overall group)
+ * Shorthand endpoints that scripts/send.js accepts map to the same group as the
+ * inbound endpoint: a missing account is `default` (as in send.js), and a
+ * missing type follows the LINE id prefix (U user -> dm, C group, R room).
  *
  * One group per LINE account and conversation, because each account is its
  * own bot. The account id contains no ':' and LINE ids are alphanumeric, so
@@ -26,6 +29,9 @@ export const PAIRING_NOTICE_TYPE = 'dm-pairing';
 const ACCOUNT_ID = /^[A-Za-z0-9][A-Za-z0-9_.-]*$/;
 const LINE_ID = /^[A-Za-z0-9]+$/;
 const PREFIX = { dm: 'dm', group: 'group', room: 'room' };
+const TYPE_BY_ID_PREFIX = { U: 'dm', C: 'group', R: 'room' };
+/** Longest LINE id (U/C/R + 32 hex), used to check account ids up front. */
+const LONGEST_LINE_ID = `U${'0'.repeat(32)}`;
 
 /**
  * Whether Core would accept this nonempty name.
@@ -52,14 +58,14 @@ function endpointField(parts, key) {
 export function sessionGroupFromEndpoint(endpoint) {
   const parts = String(endpoint ?? '').split('|');
   const targetId = parts[0];
-  const type = endpointField(parts, 'type');
-  const account = endpointField(parts, 'account');
+  const type = endpointField(parts, 'type') ?? TYPE_BY_ID_PREFIX[targetId[0]];
+  const account = endpointField(parts, 'account') ?? 'default';
 
   if (type === PAIRING_NOTICE_TYPE && targetId === 'admin') return '';
-  if (type === undefined) throw new Error(`endpoint has no type: ${quote(endpoint)}`);
+  if (type === undefined) throw new Error(`endpoint has no type and the id has no U/C/R prefix: ${quote(endpoint)}`);
   const prefix = PREFIX[type];
   if (!prefix) throw new Error(`unknown chat type in endpoint: ${quote(type, 32)}`);
-  if (account === undefined || !ACCOUNT_ID.test(account)) {
+  if (!ACCOUNT_ID.test(account)) {
     throw new Error(`invalid LINE account in endpoint: ${quote(endpoint)}`);
   }
   if (!LINE_ID.test(targetId)) throw new Error(`invalid LINE id in endpoint: ${quote(endpoint)}`);
@@ -69,4 +75,19 @@ export function sessionGroupFromEndpoint(endpoint) {
     throw new Error(`session group would be invalid for Core (length ${name.length}, max ${SESSION_GROUP_MAX_LENGTH})`);
   }
   return name;
+}
+
+/**
+ * Why messages for this account id could not be mapped on a multi-session
+ * Core, or null when they can.
+ * @param {string} accountId
+ * @returns {string|null}
+ */
+export function accountIdProblem(accountId) {
+  try {
+    sessionGroupFromEndpoint(`${LONGEST_LINE_ID}|type:group|account:${accountId}`);
+    return null;
+  } catch (err) {
+    return err.message;
+  }
 }
