@@ -6,6 +6,7 @@ import { ReplyTokenStore } from './lib/reply-token-store.js';
 import { buildEndpoint, formatMessage, lineSourceType, lineTargetId } from './lib/format.js';
 import { decideInboundAccess } from './lib/access.js';
 import { downloadLineMessageContent, isSafeLineMessageId } from './lib/media.js';
+import { sendContent } from '../scripts/send.js';
 
 function requestPath(req) {
   return req.path || req.originalUrl?.split('?')[0] || '';
@@ -60,8 +61,16 @@ export function registerRoutes(app, deps = {}) {
     eventDedupeStore = new EventDedupeStore({ ttlMs: getConfig().webhookDedupTtlMs }),
     decideAccess = decideInboundAccess,
     downloadMedia = downloadLineMessageContent,
+    sendNotice = (endpoint, text) => sendContent(endpoint, text),
     logger = console
   } = deps;
+
+  // Tell the LINE user when the agent will not answer (reply token first, then push).
+  const notifyUser = (endpoint, text) => {
+    Promise.resolve()
+      .then(() => sendNotice(endpoint, text))
+      .catch((err) => logger.warn?.(`[line] failed to send notice: ${err.message}`));
+  };
 
   app.get('/health', (req, res) => {
     const cfg = getConfig();
@@ -182,7 +191,7 @@ export function registerRoutes(app, deps = {}) {
           replyKey
         });
         const content = formatMessage(type, event.source?.userId || 'unknown', messageText, { groupName: targetId, filePath });
-        sendToC4('line', endpoint, content);
+        sendToC4('line', endpoint, content, { onNotice: (text) => notifyUser(endpoint, text) });
       }
 
       res.json({ ok: true });

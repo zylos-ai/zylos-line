@@ -409,4 +409,38 @@ describe('LINE webhook routes', () => {
     expect(sent[0].content).toContain('[Location: Cafe — 1 Main St]');
     expect(sent[0].content).not.toContain('undefined');
   });
+
+  it('sends the notice from sendToC4 to the same conversation endpoint', async () => {
+    const notices = [];
+    let noticeSent;
+    const noticeDone = new Promise((resolve) => { noticeSent = resolve; });
+    app = createApp({
+      sendToC4: vi.fn((channel, endpoint, content, { onNotice } = {}) => {
+        sent.push({ channel, endpoint, content });
+        onNotice('try later');
+      }),
+      sendNotice: vi.fn(async (endpoint, text) => {
+        notices.push({ endpoint, text });
+        noticeSent();
+      }),
+      replyTokenStore: new ReplyTokenStore({ filePath: tempFile('reply.json'), now: () => 1000 }),
+      eventDedupeStore: new EventDedupeStore({ filePath: tempFile('dedupe.json'), now: () => 1000, ttlMs: 60_000 })
+    });
+    const body = {
+      destination: 'Ubot',
+      events: [{
+        type: 'message',
+        webhookEventId: 'evt-notice',
+        replyToken: 'reply-notice',
+        source: { type: 'user', userId: 'U123' },
+        message: { type: 'text', text: 'hello' }
+      }]
+    };
+
+    await signedPost(app, '/line/webhook', body, 'root-secret').expect(200);
+    await noticeDone;
+
+    expect(sent).toHaveLength(1);
+    expect(notices).toEqual([{ endpoint: sent[0].endpoint, text: 'try later' }]);
+  });
 });
